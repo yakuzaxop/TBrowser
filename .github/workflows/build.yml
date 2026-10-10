@@ -1,4 +1,4 @@
-name: Build TBrowser APK
+name: Build DraculaWeb APK
 
 on:
   workflow_dispatch:
@@ -40,7 +40,7 @@ jobs:
                   mavenCentral()
               }
           }
-          rootProject.name = "TBrowser"
+          rootProject.name = "DraculaWeb"
           include ':app'
           EOF
 
@@ -68,8 +68,8 @@ jobs:
                   applicationId 'com.tushar.browser'
                   minSdk 23
                   targetSdk 28
-                  versionCode 2
-                  versionName '2.0'
+                  versionCode 3
+                  versionName '2.1'
               }
           }
           EOF
@@ -82,7 +82,7 @@ jobs:
               <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
 
               <application
-                  android:label="TBrowser"
+                  android:label="DraculaWeb"
                   android:theme="@android:style/Theme.Material.NoActionBar"
                   android:usesCleartextTraffic="true"
                   android:hardwareAccelerated="true">
@@ -180,7 +180,7 @@ jobs:
                   prefs = getSharedPreferences("tbrowser_settings", MODE_PRIVATE);
                   darkMode = prefs.getBoolean("dark_mode", true);
                   buildInterface();
-                  newTab("https://www.google.com");
+                  newTab(prefs.getString("homepage", "https://www.google.com"));
               }
 
               private int bg() { return darkMode ? Color.rgb(12, 15, 22) : Color.rgb(246, 248, 252); }
@@ -192,87 +192,75 @@ jobs:
               private void buildInterface() {
                   root = new LinearLayout(this);
                   root.setOrientation(LinearLayout.VERTICAL);
-                  root.setPadding(dp(8), dp(8), dp(8), dp(6));
+                  root.setPadding(dp(5), dp(5), dp(5), dp(4));
                   root.setBackgroundColor(bg());
 
-                  LinearLayout header = new LinearLayout(this);
-                  header.setGravity(Gravity.CENTER_VERTICAL);
-                  header.setPadding(dp(4), dp(2), dp(4), dp(8));
+                  // One compact toolbar: DraculaWeb, URL bar, New Tab and menu on the same line.
+                  LinearLayout toolbar = new LinearLayout(this);
+                  toolbar.setGravity(Gravity.CENTER_VERTICAL);
 
                   brand = new TextView(this);
-                  brand.setText("◉  TBrowser");
-                  brand.setTextSize(21);
+                  brand.setText("🧛 DraculaWeb");
+                  brand.setTextSize(15);
                   brand.setTypeface(null, 1);
                   brand.setTextColor(accent());
-                  header.addView(brand, new LinearLayout.LayoutParams(0, -2, 1));
+                  brand.setSingleLine(true);
+                  toolbar.addView(brand, new LinearLayout.LayoutParams(-2, dp(42)));
 
-                  Button themeBtn = makeButton("☼ Theme");
-                  themeBtn.setOnClickListener(v -> {
-                      darkMode = !darkMode;
-                      prefs.edit().putBoolean("dark_mode", darkMode).apply();
-                      rebuildKeepingPages();
-                  });
-                  header.addView(themeBtn);
-                  root.addView(header);
-
-                  LinearLayout addressRow = new LinearLayout(this);
-                  addressRow.setGravity(Gravity.CENTER_VERTICAL);
                   addressBar = new EditText(this);
                   addressBar.setSingleLine(true);
-                  addressBar.setTextSize(14);
-                  addressBar.setHint("Search or enter website");
+                  addressBar.setTextSize(13);
+                  addressBar.setHint("Search or URL");
                   addressBar.setHintTextColor(muted());
                   addressBar.setTextColor(fg());
-                  addressBar.setPadding(dp(12), 0, dp(8), 0);
-                  addressBar.setBackground(roundDrawable(panel(), dp(18)));
+                  addressBar.setPadding(dp(9), 0, dp(5), 0);
+                  addressBar.setBackground(roundDrawable(panel(), dp(13)));
                   addressBar.setImeOptions(EditorInfo.IME_ACTION_GO);
                   addressBar.setSelectAllOnFocus(true);
                   addressBar.setOnEditorActionListener((v, actionId, event) -> {
                       if (actionId == EditorInfo.IME_ACTION_GO || actionId == EditorInfo.IME_ACTION_DONE ||
                           (event != null && event.getKeyCode() == android.view.KeyEvent.KEYCODE_ENTER)) {
-                          goToAddress();
-                          return true;
+                          goToAddress(); return true;
                       }
                       return false;
                   });
-                  addressRow.addView(addressBar, new LinearLayout.LayoutParams(0, dp(46), 1));
+                  LinearLayout.LayoutParams urlLp = new LinearLayout.LayoutParams(0, dp(40), 1);
+                  urlLp.leftMargin = dp(6);
+                  toolbar.addView(addressBar, urlLp);
 
-                  Button go = makeButton("Go");
-                  go.setOnClickListener(v -> goToAddress());
-                  LinearLayout.LayoutParams goLp = new LinearLayout.LayoutParams(-2, dp(46));
-                  goLp.leftMargin = dp(6);
-                  addressRow.addView(go, goLp);
-                  root.addView(addressRow);
+                  Button newTabBtn = makeButton("＋");
+                  newTabBtn.setTextSize(20);
+                  newTabBtn.setPadding(dp(7), 0, dp(7), 0);
+                  LinearLayout.LayoutParams plusLp = new LinearLayout.LayoutParams(dp(40), dp(40));
+                  plusLp.leftMargin = dp(4);
+                  toolbar.addView(newTabBtn, plusLp);
+                  newTabBtn.setOnClickListener(v -> newTab("https://www.google.com"));
+
+                  Button menuBtn = makeButton("⋮");
+                  menuBtn.setTextSize(22);
+                  menuBtn.setPadding(0, 0, 0, 0);
+                  LinearLayout.LayoutParams menuLp = new LinearLayout.LayoutParams(dp(36), dp(40));
+                  menuLp.leftMargin = dp(2);
+                  toolbar.addView(menuBtn, menuLp);
+                  menuBtn.setOnClickListener(v -> showBrowserMenu());
+                  root.addView(toolbar);
 
                   HorizontalScrollView shortcutScroll = new HorizontalScrollView(this);
                   shortcutScroll.setHorizontalScrollBarEnabled(false);
                   shortcutsRow = new LinearLayout(this);
-                  shortcutsRow.setPadding(0, dp(7), 0, dp(4));
+                  shortcutsRow.setPadding(0, dp(5), 0, dp(4));
                   for (int i = 0; i < shortcutUrls.length; i++) {
                       final int index = i;
                       Button b = makeButton(shortcutNames[i]);
-                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(38));
-                      lp.rightMargin = dp(5);
+                      b.setTextSize(10);
+                      b.setPadding(dp(8), 0, dp(8), 0);
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(31));
+                      lp.rightMargin = dp(4);
                       shortcutsRow.addView(b, lp);
                       b.setOnClickListener(v -> loadInCurrent(shortcutUrls[index]));
                   }
                   shortcutScroll.addView(shortcutsRow);
                   root.addView(shortcutScroll);
-
-                  HorizontalScrollView controlsScroll = new HorizontalScrollView(this);
-                  controlsScroll.setHorizontalScrollBarEnabled(false);
-                  controlsRow = new LinearLayout(this);
-                  controlsRow.setPadding(0, dp(2), 0, dp(6));
-                  addControl("←", () -> goBack());
-                  addControl("→", () -> goForward());
-                  addControl("↻", () -> { WebView w = active(); if (w != null) w.reload(); });
-                  addControl("+ Tab", () -> newTab("https://www.google.com"));
-                  addControl("Close", () -> closeTab());
-                  addControl("☆ Save", () -> saveBookmark());
-                  addControl("Bookmarks", () -> showBookmarks());
-                  addControl("Downloads", () -> showDownloads());
-                  controlsScroll.addView(controlsRow);
-                  root.addView(controlsScroll);
 
                   HorizontalScrollView tabScroll = new HorizontalScrollView(this);
                   tabScroll.setHorizontalScrollBarEnabled(false);
@@ -283,23 +271,140 @@ jobs:
                   progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
                   progress.setMax(100);
                   progress.setProgress(0);
-                  root.addView(progress, new LinearLayout.LayoutParams(-1, dp(3)));
+                  root.addView(progress, new LinearLayout.LayoutParams(-1, dp(2)));
 
                   browserFrame = new FrameLayout(this);
                   LinearLayout.LayoutParams browserLp = new LinearLayout.LayoutParams(-1, 0, 1);
-                  browserLp.topMargin = dp(5);
-                  browserLp.bottomMargin = dp(5);
+                  browserLp.topMargin = dp(2);
                   root.addView(browserFrame, browserLp);
 
+                  // Persistent bottom controls: clear cookies and clear cache stay outside the menu.
                   bottomRow = new LinearLayout(this);
-                  bottomRow.setGravity(Gravity.CENTER);
-                  addBottomButton("Clear Cookies", () -> clearCookies());
-                  addBottomButton("Clear Cache", () -> clearCache());
-                  addBottomButton("Home", () -> loadInCurrent("https://www.google.com"));
-                  root.addView(bottomRow);
+                  bottomRow.setGravity(Gravity.CENTER_VERTICAL);
+                  bottomRow.setPadding(0, dp(4), 0, 0);
+                  Button clearCookiesBtn = makeButton("🧹 Clear Cookies");
+                  clearCookiesBtn.setTextSize(11);
+                  Button clearCacheBtn = makeButton("Clear Cache");
+                  clearCacheBtn.setTextSize(11);
+                  LinearLayout.LayoutParams bottomBtnLp = new LinearLayout.LayoutParams(0, dp(34), 1);
+                  bottomBtnLp.leftMargin = dp(2);
+                  bottomBtnLp.rightMargin = dp(2);
+                  bottomRow.addView(clearCookiesBtn, new LinearLayout.LayoutParams(0, dp(34), 1));
+                  bottomRow.addView(clearCacheBtn, new LinearLayout.LayoutParams(0, dp(34), 1));
+                  clearCookiesBtn.setOnClickListener(v -> clearCookies());
+                  clearCacheBtn.setOnClickListener(v -> clearCache());
+                  root.addView(bottomRow, new LinearLayout.LayoutParams(-1, dp(38)));
 
                   setContentView(root);
                   applyColors();
+              }
+
+              private void showBrowserMenu() {
+                  String[] items = {"🔖 Bookmarks", "🕘 History", "📥 Downloads", "🧩 Extensions",
+                      darkMode ? "☀ Light Mode" : "🌙 Dark Mode", "🖥 Desktop Site", "↻ Reload",
+                      "↗ Share Page", "⌕ Find in Page", "⌂ Home", "🧹 Clear Browsing Data", "⚙ Settings", "ⓘ About DraculaWeb"};
+                  new AlertDialog.Builder(this)
+                      .setTitle("🧛 DraculaWeb")
+                      .setItems(items, (dialog, which) -> {
+                          switch (which) {
+                              case 0: showBookmarks(); break;
+                              case 1: showHistory(); break;
+                              case 2: showDownloads(); break;
+                              case 3: showExtensionsInfo(); break;
+                              case 4:
+                                  darkMode = !darkMode;
+                                  prefs.edit().putBoolean("dark_mode", darkMode).apply();
+                                  rebuildKeepingPages(); break;
+                              case 5: toggleDesktopSite(); break;
+                              case 6: if (active() != null) active().reload(); break;
+                              case 7: shareCurrentPage(); break;
+                              case 8: findInPage(); break;
+                              case 9: loadInCurrent(prefs.getString("homepage", "https://www.google.com")); break;
+                              case 10: clearBrowsingData(); break;
+                              case 11: showSettings(); break;
+                              case 12: new AlertDialog.Builder(this).setTitle("About DraculaWeb")
+                                  .setMessage("DraculaWeb 2.2\nA compact Android WebView browser.")
+                                  .setPositiveButton("OK", null).show(); break;
+                          }
+                      }).show();
+              }
+
+              private void showExtensionsInfo() {
+                  new AlertDialog.Builder(this).setTitle("Extensions")
+                      .setMessage("Chrome Web Store extensions cannot be installed directly in Android WebView. This build does not yet support real Chrome extensions.")
+                      .setPositiveButton("Open Chrome Web Store", (d, w) -> loadInCurrent("https://chromewebstore.google.com/"))
+                      .setNegativeButton("Close", null).show();
+              }
+
+              private void showHistory() {
+                  Set<String> saved = prefs.getStringSet("history", new HashSet<>());
+                  if (saved.isEmpty()) { Toast.makeText(this, "No history yet", Toast.LENGTH_SHORT).show(); return; }
+                  ArrayList<String> list = new ArrayList<>(saved);
+                  java.util.Collections.reverse(list);
+                  String[] items = list.toArray(new String[0]);
+                  new AlertDialog.Builder(this).setTitle("History")
+                      .setItems(items, (d, which) -> loadInCurrent(items[which]))
+                      .setNeutralButton("Clear history", (d, w) -> { prefs.edit().remove("history").apply(); Toast.makeText(this, "History cleared", Toast.LENGTH_SHORT).show(); })
+                      .setNegativeButton("Close", null).show();
+              }
+
+              private void addHistory(String url) {
+                  if (url == null || !(url.startsWith("http://") || url.startsWith("https://"))) return;
+                  Set<String> old = prefs.getStringSet("history", new HashSet<>());
+                  ArrayList<String> list = new ArrayList<>(old);
+                  list.remove(url); list.add(url);
+                  while (list.size() > 100) list.remove(0);
+                  prefs.edit().putStringSet("history", new HashSet<>(list)).apply();
+              }
+
+              private void toggleDesktopSite() {
+                  WebView w = active(); if (w == null) return;
+                  android.webkit.WebSettings settings = w.getSettings();
+                  boolean desktop = !settings.getUserAgentString().contains("DraculaDesktop");
+                  String ua = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 DraculaDesktop";
+                  settings.setUserAgentString(desktop ? ua : android.webkit.WebSettings.getDefaultUserAgent(this));
+                  w.reload();
+              }
+
+              private void shareCurrentPage() {
+                  WebView w = active(); if (w == null || w.getUrl() == null) return;
+                  Intent share = new Intent(Intent.ACTION_SEND); share.setType("text/plain");
+                  share.putExtra(Intent.EXTRA_TEXT, w.getUrl());
+                  startActivity(Intent.createChooser(share, "Share page"));
+              }
+
+              private void findInPage() {
+                  EditText input = new EditText(this); input.setSingleLine(true); input.setHint("Find text");
+                  new AlertDialog.Builder(this).setTitle("Find in page").setView(input)
+                      .setPositiveButton("Find", (d, w) -> { if (active() != null) active().findAllAsync(input.getText().toString()); })
+                      .setNegativeButton("Cancel", null).show();
+              }
+
+              private void clearBrowsingData() {
+                  new AlertDialog.Builder(this).setTitle("Clear browsing data")
+                      .setMessage("Clear history, cookies and cached files?")
+                      .setNegativeButton("Cancel", null)
+                      .setPositiveButton("Clear", (d, w) -> {
+                          prefs.edit().remove("history").remove("bookmarks").apply();
+                          clearCookies(); clearCache();
+                      }).show();
+              }
+
+              private void showSettings() {
+                  String[] items = {"Dark / Light Mode", "Homepage", "Search Engine"};
+                  new AlertDialog.Builder(this).setTitle("Settings").setItems(items, (d, which) -> {
+                      if (which == 0) { darkMode = !darkMode; prefs.edit().putBoolean("dark_mode", darkMode).apply(); rebuildKeepingPages(); }
+                      else if (which == 1) editPreferenceUrl("homepage", "Homepage URL", "https://www.google.com");
+                      else if (which == 2) editPreferenceUrl("search_engine", "Search URL (use %s for query)", "https://www.google.com/search?q=%s");
+                  }).show();
+              }
+
+              private void editPreferenceUrl(String key, String title, String fallback) {
+                  EditText input = new EditText(this); input.setSingleLine(true);
+                  input.setText(prefs.getString(key, fallback));
+                  new AlertDialog.Builder(this).setTitle(title).setView(input)
+                      .setPositiveButton("Save", (d, w) -> prefs.edit().putString(key, input.getText().toString().trim()).apply())
+                      .setNegativeButton("Cancel", null).show();
               }
 
               private void rebuildKeepingPages() {
@@ -388,7 +493,7 @@ jobs:
                       target = "https://" + text;
                   } else {
                       try {
-                          target = "https://www.google.com/search?q=" + Uri.encode(text);
+                          target = prefs.getString("search_engine", "https://www.google.com/search?q=%s").replace("%s", Uri.encode(text));
                       } catch (Exception e) {
                           target = "https://www.google.com";
                       }
@@ -454,6 +559,7 @@ jobs:
                           }
                           int index = pages.indexOf(view);
                           if (index >= 0) pageUrls.set(index, url);
+                          addHistory(url);
                           refreshTabs();
                       }
                   });
@@ -518,7 +624,7 @@ jobs:
                       DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
                       String filename = URLUtil.guessFileName(url, disposition, mime);
                       request.setTitle(filename);
-                      request.setDescription("Downloading with TBrowser");
+                      request.setDescription("Downloading with DraculaWeb");
                       request.setMimeType(mime);
                       request.addRequestHeader("User-Agent", userAgent);
                       String cookie = CookieManager.getInstance().getCookie(url);
@@ -570,7 +676,7 @@ jobs:
                   tabsRow.removeAllViews();
                   for (int i = 0; i < pages.size(); i++) {
                       final int index = i;
-                      Button b = makeButton((i == current ? "● " : "") + "Tab " + (i + 1));
+                      Button b = makeButton((i == current ? "● " : "") + "Tab " + (i + 1) + "  ×");
                       LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(36));
                       lp.rightMargin = dp(4);
                       tabsRow.addView(b, lp);
@@ -681,5 +787,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TBrowser-2.0-APK
+          name: DraculaWeb-2.2-APK
           path: app/build/outputs/apk/debug/app-debug.apk
