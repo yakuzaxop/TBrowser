@@ -1,0 +1,315 @@
+name: Build TBrowser APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Create Android project
+        run: |
+          mkdir -p app/src/main/java/com/tushar/browser
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "TBrowser"
+          include ':app'
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.6.1' apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.tushar.browser'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.tushar.browser'
+                  minSdk 23
+                  targetSdk 28
+                  versionCode 1
+                  versionName '1.0'
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <application
+                  android:label="TBrowser"
+                  android:theme="@android:style/Theme.Material.Light.NoActionBar"
+                  android:usesCleartextTraffic="true">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/tushar/browser/MainActivity.java <<'EOF'
+          package com.tushar.browser;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.webkit.CookieManager;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.widget.Button;
+          import android.widget.LinearLayout;
+          import android.widget.FrameLayout;
+          import android.widget.HorizontalScrollView;
+          import android.widget.Toast;
+          import java.util.ArrayList;
+
+          public class MainActivity extends Activity {
+              LinearLayout tabs;
+              FrameLayout browser;
+              ArrayList<WebView> pages = new ArrayList<WebView>();
+              int current = -1;
+
+              String[] names = {
+                  "Meta Contact", "TD Mail", "Meta Auth",
+                  "2FA", "Manage", "Instagram Login"
+              };
+
+              String[] urls = {
+                  "http://accountscenter.meta.com/account_overview/contact_points",
+                  "https://mail.td/",
+                  "http://auth.meta.com/?waterfall_id",
+                  "https://accountscenter.instagram.com/password_and_security/two_factor/?theme=dark",
+                  "https://accountscenter.instagram.com/manage/",
+                  "https://www.instagram.com/accounts/login/"
+              };
+
+              public void onCreate(Bundle b) {
+                  super.onCreate(b);
+
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(1);
+
+                  HorizontalScrollView shortcutsScroll = new HorizontalScrollView(this);
+                  LinearLayout shortcuts = new LinearLayout(this);
+
+                  for (int i = 0; i < urls.length; i++) {
+                      final int n = i;
+                      Button btn = button(names[i]);
+                      btn.setOnClickListener(new View.OnClickListener() {
+                          public void onClick(View v) {
+                              if (current < 0) newTab(urls[n]);
+                              else pages.get(current).loadUrl(urls[n]);
+                          }
+                      });
+                      shortcuts.addView(btn);
+                  }
+
+                  shortcutsScroll.addView(shortcuts);
+                  root.addView(shortcutsScroll);
+
+                  LinearLayout controls = new LinearLayout(this);
+                  addControl(controls, "Back", new Runnable() {
+                      public void run() {
+                          WebView w = active();
+                          if (w != null && w.canGoBack()) w.goBack();
+                      }
+                  });
+
+                  addControl(controls, "Forward", new Runnable() {
+                      public void run() {
+                          WebView w = active();
+                          if (w != null && w.canGoForward()) w.goForward();
+                      }
+                  });
+
+                  addControl(controls, "Refresh", new Runnable() {
+                      public void run() {
+                          WebView w = active();
+                          if (w != null) w.reload();
+                      }
+                  });
+
+                  addControl(controls, "+ Tab", new Runnable() {
+                      public void run() {
+                          newTab(urls[5]);
+                      }
+                  });
+
+                  addControl(controls, "Close", new Runnable() {
+                      public void run() {
+                          closeTab();
+                      }
+                  });
+
+                  root.addView(controls);
+
+                  HorizontalScrollView tabScroll = new HorizontalScrollView(this);
+                  tabs = new LinearLayout(this);
+                  tabScroll.addView(tabs);
+                  root.addView(tabScroll);
+
+                  browser = new FrameLayout(this);
+                  root.addView(browser, new LinearLayout.LayoutParams(-1, 0, 1));
+
+                  LinearLayout clear = new LinearLayout(this);
+
+                  addControl(clear, "Clear Cookies", new Runnable() {
+                      public void run() {
+                          CookieManager cm = CookieManager.getInstance();
+                          cm.removeAllCookies(null);
+                          cm.flush();
+                          Toast.makeText(MainActivity.this, "Cookies cleared", 0).show();
+                      }
+                  });
+
+                  addControl(clear, "Clear Cache", new Runnable() {
+                      public void run() {
+                          for (WebView w : pages) {
+                              w.clearCache(true);
+                              w.clearHistory();
+                          }
+                          Toast.makeText(MainActivity.this, "Cache cleared", 0).show();
+                      }
+                  });
+
+                  root.addView(clear);
+                  setContentView(root);
+                  newTab(urls[5]);
+              }
+
+              Button button(String text) {
+                  Button b = new Button(this);
+                  b.setText(text);
+                  b.setTextSize(12);
+                  b.setAllCaps(false);
+                  return b;
+              }
+
+              void addControl(LinearLayout row, String text, final Runnable r) {
+                  Button b = button(text);
+                  b.setOnClickListener(new View.OnClickListener() {
+                      public void onClick(View v) {
+                          r.run();
+                      }
+                  });
+                  row.addView(b, new LinearLayout.LayoutParams(0, -2, 1));
+              }
+
+              WebView active() {
+                  if (current < 0 || current >= pages.size()) return null;
+                  return pages.get(current);
+              }
+
+              void newTab(String url) {
+                  WebView w = new WebView(this);
+                  w.getSettings().setJavaScriptEnabled(true);
+                  w.getSettings().setDomStorageEnabled(true);
+                  w.setWebViewClient(new WebViewClient());
+                  pages.add(w);
+                  browser.addView(w, new FrameLayout.LayoutParams(-1, -1));
+                  current = pages.size() - 1;
+                  w.loadUrl(url);
+                  refreshTabs();
+              }
+
+              void refreshTabs() {
+                  tabs.removeAllViews();
+
+                  for (int i = 0; i < pages.size(); i++) {
+                      final int n = i;
+                      Button b = button((i == current ? "● " : "") + "Tab " + (i + 1));
+                      b.setOnClickListener(new View.OnClickListener() {
+                          public void onClick(View v) {
+                              current = n;
+                              for (int j = 0; j < pages.size(); j++) {
+                                  pages.get(j).setVisibility(j == current ? View.VISIBLE : View.GONE);
+                              }
+                              refreshTabs();
+                          }
+                      });
+                      tabs.addView(b);
+                      pages.get(i).setVisibility(i == current ? View.VISIBLE : View.GONE);
+                  }
+              }
+
+              void closeTab() {
+                  if (pages.size() <= 1) {
+                      Toast.makeText(this, "Keep at least one tab open", 0).show();
+                      return;
+                  }
+
+                  WebView w = pages.remove(current);
+                  browser.removeView(w);
+                  w.destroy();
+                  current = Math.max(0, current - 1);
+                  refreshTabs();
+              }
+
+              public void onBackPressed() {
+                  WebView w = active();
+                  if (w != null && w.canGoBack()) w.goBack();
+                  else if (pages.size() > 1) closeTab();
+                  else super.onBackPressed();
+              }
+          }
+          EOF
+
+      - name: Install Gradle
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          unzip -q gradle-8.9-bin.zip
+          echo "$GITHUB_WORKSPACE/gradle-8.9/bin" >> "$GITHUB_PATH"
+
+      - name: Build APK
+        run: gradle --no-daemon assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TBrowser-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
