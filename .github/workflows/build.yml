@@ -1,4 +1,4 @@
-name: Build DraculaWeb Extensions APK
+õname: Build DraculaWeb Extensions APK
 
 on:
   workflow_dispatch:
