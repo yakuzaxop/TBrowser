@@ -68,8 +68,8 @@ jobs:
                   applicationId 'com.tushar.browser'
                   minSdk 23
                   targetSdk 28
-                  versionCode 3
-                  versionName '2.1'
+                  versionCode 4
+                  versionName '2.3'
               }
           }
           EOF
@@ -187,7 +187,7 @@ jobs:
               private int panel() { return darkMode ? Color.rgb(24, 29, 40) : Color.WHITE; }
               private int fg() { return darkMode ? Color.rgb(240, 244, 255) : Color.rgb(25, 31, 43); }
               private int muted() { return darkMode ? Color.rgb(155, 168, 190) : Color.rgb(100, 110, 126); }
-              private int accent() { return Color.rgb(57, 130, 246); }
+              private int accent() { return Color.rgb(177, 104, 255); }
 
               private void buildInterface() {
                   root = new LinearLayout(this);
@@ -201,15 +201,23 @@ jobs:
 
                   brand = new TextView(this);
                   brand.setText("🧛 DraculaWeb");
-                  brand.setTextSize(15);
-                  brand.setTypeface(null, 1);
-                  brand.setTextColor(accent());
+                  brand.setTextSize(14);
+                  brand.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD));
+                  brand.setTextColor(Color.rgb(190, 132, 255));
+                  brand.setLetterSpacing(0.01f);
+                  brand.setGravity(Gravity.CENTER_VERTICAL);
                   brand.setSingleLine(true);
-                  toolbar.addView(brand, new LinearLayout.LayoutParams(-2, dp(42)));
+                  brand.setIncludeFontPadding(false);
+                  brand.setPadding(dp(2), 0, dp(2), 0);
+                  LinearLayout.LayoutParams brandLp = new LinearLayout.LayoutParams(-2, dp(42));
+                  brandLp.gravity = Gravity.CENTER_VERTICAL;
+                  toolbar.addView(brand, brandLp);
 
                   addressBar = new EditText(this);
                   addressBar.setSingleLine(true);
                   addressBar.setTextSize(13);
+                  addressBar.setGravity(Gravity.CENTER_VERTICAL);
+                  addressBar.setIncludeFontPadding(false);
                   addressBar.setHint("Search or URL");
                   addressBar.setHintTextColor(muted());
                   addressBar.setTextColor(fg());
@@ -323,7 +331,7 @@ jobs:
                               case 10: clearBrowsingData(); break;
                               case 11: showSettings(); break;
                               case 12: new AlertDialog.Builder(this).setTitle("About DraculaWeb")
-                                  .setMessage("DraculaWeb 2.2\nA compact Android WebView browser.")
+                                  .setMessage("DraculaWeb 2.3\nA compact Android WebView browser.")
                                   .setPositiveButton("OK", null).show(); break;
                           }
                       }).show();
@@ -787,5 +795,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: DraculaWeb-2.2-APK
+          name: DraculaWeb-2.3-APK
           path: app/build/outputs/apk/debug/app-debug.apk
