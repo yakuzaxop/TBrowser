@@ -68,8 +68,8 @@ jobs:
                   applicationId 'com.tushar.browser'
                   minSdk 23
                   targetSdk 28
-                  versionCode 4
-                  versionName '2.3'
+                  versionCode 5
+                  versionName '2.4'
               }
           }
           EOF
@@ -331,7 +331,7 @@ jobs:
                               case 10: clearBrowsingData(); break;
                               case 11: showSettings(); break;
                               case 12: new AlertDialog.Builder(this).setTitle("About DraculaWeb")
-                                  .setMessage("DraculaWeb 2.3\nA compact Android WebView browser.")
+                                  .setMessage("DraculaWeb 2.3\nA compact Made By Tusar Ahmed.")
                                   .setPositiveButton("OK", null).show(); break;
                           }
                       }).show();
@@ -684,11 +684,18 @@ jobs:
                   tabsRow.removeAllViews();
                   for (int i = 0; i < pages.size(); i++) {
                       final int index = i;
-                      Button b = makeButton((i == current ? "● " : "") + "Tab " + (i + 1) + "  ×");
-                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(36));
-                      lp.rightMargin = dp(4);
-                      tabsRow.addView(b, lp);
-                      b.setOnClickListener(v -> {
+                      LinearLayout tabChip = new LinearLayout(this);
+                      tabChip.setOrientation(LinearLayout.HORIZONTAL);
+                      tabChip.setGravity(Gravity.CENTER_VERTICAL);
+                      tabChip.setBackground(makeTabBackground(i == current));
+
+                      Button select = makeButton((i == current ? "● " : "") + "Tab " + (i + 1));
+                      select.setAllCaps(false);
+                      select.setMinWidth(0);
+                      select.setPadding(dp(10), 0, dp(6), 0);
+                      select.setBackgroundColor(Color.TRANSPARENT);
+                      tabChip.addView(select, new LinearLayout.LayoutParams(-2, dp(36)));
+                      select.setOnClickListener(v -> {
                           current = index;
                           for (int j = 0; j < pages.size(); j++) {
                               pages.get(j).setVisibility(j == current ? View.VISIBLE : View.GONE);
@@ -696,7 +703,46 @@ jobs:
                           refreshTabs();
                           updateAddressBar();
                       });
+
+                      Button close = makeButton("×");
+                      close.setTextSize(18);
+                      close.setMinWidth(dp(32));
+                      close.setPadding(dp(4), 0, dp(8), 0);
+                      close.setContentDescription("Close Tab " + (i + 1));
+                      close.setBackgroundColor(Color.TRANSPARENT);
+                      tabChip.addView(close, new LinearLayout.LayoutParams(dp(32), dp(36)));
+                      close.setOnClickListener(v -> {
+                          if (pages.size() <= 1) {
+                              Toast.makeText(this, "Keep at least one tab open", Toast.LENGTH_SHORT).show();
+                              return;
+                          }
+                          int removeIndex = index;
+                          WebView removed = pages.remove(removeIndex);
+                          pageUrls.remove(removeIndex);
+                          browserFrame.removeView(removed);
+                          removed.stopLoading();
+                          removed.destroy();
+                          if (removeIndex < current) current--;
+                          else if (removeIndex == current) current = Math.min(current, pages.size() - 1);
+                          for (int j = 0; j < pages.size(); j++) {
+                              pages.get(j).setVisibility(j == current ? View.VISIBLE : View.GONE);
+                          }
+                          refreshTabs();
+                          updateAddressBar();
+                      });
+
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(36));
+                      lp.rightMargin = dp(6);
+                      tabsRow.addView(tabChip, lp);
                   }
+              }
+
+              private android.graphics.drawable.Drawable makeTabBackground(boolean selected) {
+                  android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+                  bg.setColor(selected ? Color.rgb(65, 38, 92) : Color.rgb(35, 31, 43));
+                  bg.setCornerRadius(dp(10));
+                  bg.setStroke(dp(1), selected ? Color.rgb(180, 120, 255) : Color.rgb(75, 65, 88));
+                  return bg;
               }
 
               private void closeTab() {
@@ -795,5 +841,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: DraculaWeb-2.3-APK
+          name: DraculaWeb-2.4-APK
           path: app/build/outputs/apk/debug/app-debug.apk
