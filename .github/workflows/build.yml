@@ -82,6 +82,8 @@ jobs:
               <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
 
               <application
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher"
                   android:label="DraculaWeb"
                   android:theme="@android:style/Theme.Material.NoActionBar"
                   android:usesCleartextTraffic="true"
@@ -163,11 +165,11 @@ jobs:
               private SharedPreferences prefs;
 
               private final String[] shortcutNames = {
-                  "Meta Contact", "Fish Mail", "Meta Auth", "2FA", "Manage", "Instagram"
+                  "Meta Contact", "TD Mail", "Meta Auth", "2FA", "Manage", "Instagram"
               };
               private final String[] shortcutUrls = {
                   "http://accountscenter.meta.com/account_overview/contact_points",
-                  "https://tempmail.fish/",
+                  "https://mail.td/",
                   "http://auth.meta.com/?waterfall_id",
                   "https://accountscenter.instagram.com/password_and_security/two_factor/?theme=dark",
                   "https://accountscenter.instagram.com/manage/",
@@ -871,6 +873,45 @@ jobs:
               }
           }
           EOF
+
+      - name: Create DraculaWeb app icons
+        shell: bash
+        run: |
+          python3 -m pip install --quiet Pillow
+
+          mkdir -p app/src/main/res/mipmap-mdpi \
+                   app/src/main/res/mipmap-hdpi \
+                   app/src/main/res/mipmap-xhdpi \
+                   app/src/main/res/mipmap-xxhdpi \
+                   app/src/main/res/mipmap-xxxhdpi
+
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+
+          source = Path("dracula_icon.png")
+          if not source.exists():
+              raise SystemExit("Missing dracula_icon.png in the repository root.")
+
+          image = Image.open(source).convert("RGBA")
+          side = min(image.size)
+          left = (image.width - side) // 2
+          top = (image.height - side) // 2
+          image = image.crop((left, top, left + side, top + side))
+
+          sizes = {
+              "mipmap-mdpi": 48,
+              "mipmap-hdpi": 72,
+              "mipmap-xhdpi": 96,
+              "mipmap-xxhdpi": 144,
+              "mipmap-xxxhdpi": 192,
+          }
+          for folder, size in sizes.items():
+              output = Path("app/src/main/res") / folder / "ic_launcher.png"
+              image.resize((size, size), Image.Resampling.LANCZOS).save(output, "PNG")
+
+          print("Created DraculaWeb launcher icons.")
+          PY
 
       - name: Install Gradle
         run: |
