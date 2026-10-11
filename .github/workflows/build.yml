@@ -163,11 +163,11 @@ jobs:
               private SharedPreferences prefs;
 
               private final String[] shortcutNames = {
-                  "Meta Contact", "TD Mail", "Meta Auth", "2FA", "Manage", "Instagram"
+                  "Meta Contact", "Fish Mail", "Meta Auth", "2FA", "Manage", "Instagram"
               };
               private final String[] shortcutUrls = {
                   "http://accountscenter.meta.com/account_overview/contact_points",
-                  "https://mail.td/",
+                  "https://tempmail.fish/",
                   "http://auth.meta.com/?waterfall_id",
                   "https://accountscenter.instagram.com/password_and_security/two_factor/?theme=dark",
                   "https://accountscenter.instagram.com/manage/",
@@ -331,7 +331,7 @@ jobs:
                               case 10: clearBrowsingData(); break;
                               case 11: showSettings(); break;
                               case 12: new AlertDialog.Builder(this).setTitle("About DraculaWeb")
-                                  .setMessage("DraculaWeb 2.3\nA compact Made By Dracula.")
+                                  .setMessage("DraculaWeb 2.3\nA compact Android WebView browser.")
                                   .setPositiveButton("OK", null).show(); break;
                           }
                       }).show();
