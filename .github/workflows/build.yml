@@ -331,7 +331,7 @@ jobs:
                               case 10: clearBrowsingData(); break;
                               case 11: showSettings(); break;
                               case 12: new AlertDialog.Builder(this).setTitle("About DraculaWeb")
-                                  .setMessage("DraculaWeb 2.3\nA compact Made By Tusar Ahmed.")
+                                  .setMessage("DraculaWeb 2.3\nA compact Made By Dracula.")
                                   .setPositiveButton("OK", null).show(); break;
                           }
                       }).show();
@@ -739,9 +739,9 @@ jobs:
 
               private android.graphics.drawable.Drawable makeTabBackground(boolean selected) {
                   android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-                  bg.setColor(selected ? Color.rgb(65, 38, 92) : Color.rgb(35, 31, 43));
+                  bg.setColor(selected ? Color.rgb(24, 48, 58) : Color.rgb(25, 31, 40));
                   bg.setCornerRadius(dp(10));
-                  bg.setStroke(dp(1), selected ? Color.rgb(180, 120, 255) : Color.rgb(75, 65, 88));
+                  bg.setStroke(dp(1), selected ? Color.rgb(91, 219, 202) : Color.rgb(55, 67, 79));
                   return bg;
               }
 
