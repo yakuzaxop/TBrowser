@@ -1,4 +1,4 @@
-õname: Build DraculaWeb Extensions APK
+name: Build DraculaWeb APK 2.5
 
 on:
   workflow_dispatch:
@@ -8,994 +8,881 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:name: Build DraculaWeb APK 2.5
-
-on:
-workflow_dispatch:
-push:
-branches: [main]
-
-jobs:
-build:
-runs-on: ubuntu-latest
-
-steps:  
-  - name: Checkout repository  
-    uses: actions/checkout@v4  
-
-  - name: Set up JDK  
-    uses: actions/setup-java@v4  
-    with:  
-      distribution: temurin  
-      java-version: '17'  
-
-  - name: Create Android project  
-    shell: bash  
-    run: |  
-      mkdir -p app/src/main/java/com/tushar/browser  
-      mkdir -p app/src/main/res/drawable  
-
-      cat > settings.gradle <<'EOF'  
-      pluginManagement {  
-          repositories {  
-              google()  
-              mavenCentral()  
-              gradlePluginPortal()  
-          }  
-      }  
-      dependencyResolutionManagement {  
-          repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)  
-          repositories {  
-              google()  
-              mavenCentral()  
-          }  
-      }  
-      rootProject.name = "DraculaWeb"  
-      include ':app'  
-      EOF  
-
-      cat > build.gradle <<'EOF'  
-      plugins {  
-          id 'com.android.application' version '8.6.1' apply false  
-      }  
-      EOF  
-
-      cat > gradle.properties <<'EOF'  
-      org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8  
-      android.useAndroidX=true  
-      EOF  
-
-      cat > app/build.gradle <<'EOF'  
-      plugins {  
-          id 'com.android.application'  
-      }  
-
-      android {  
-          namespace 'com.tushar.browser'  
-          compileSdk 35  
-
-          defaultConfig {  
-              applicationId 'com.tushar.browser'  
-              minSdk 23  
-              targetSdk 28  
-              versionCode 5  
-              versionName '2.4'  
-          }  
-      }  
-      EOF  
-
-      cat > app/src/main/AndroidManifest.xml <<'EOF'  
-      <?xml version="1.0" encoding="utf-8"?>  
-      <manifest xmlns:android="http://schemas.android.com/apk/res/android">  
-          <uses-permission android:name="android.permission.INTERNET"/>  
-          <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>  
-          <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>  
-
-          <application  
-              android:label="DraculaWeb"  
-              android:theme="@android:style/Theme.Material.NoActionBar"  
-              android:usesCleartextTraffic="true"  
-              android:hardwareAccelerated="true">  
-              <activity  
-                  android:name=".MainActivity"  
-                  android:configChanges="orientation|screenSize|keyboardHidden"  
-                  android:exported="true">  
-                  <intent-filter>  
-                      <action android:name="android.intent.action.MAIN"/>  
-                      <category android:name="android.intent.category.LAUNCHER"/>  
-                  </intent-filter>  
-              </activity>  
-          </application>  
-      </manifest>  
-      EOF  
-
-      cat > app/src/main/java/com/tushar/browser/MainActivity.java <<'EOF'  
-      package com.tushar.browser;  
-
-      import android.Manifest;  
-      import android.app.Activity;  
-      import android.app.AlertDialog;  
-      import android.app.DownloadManager;  
-      import android.content.ActivityNotFoundException;  
-      import android.content.Context;  
-      import android.content.Intent;  
-      import android.content.SharedPreferences;  
-      import android.content.pm.PackageManager;  
-      import android.graphics.Color;  
-      import android.net.Uri;  
-      import android.os.Build;  
-      import android.os.Bundle;  
-      import android.os.Environment;  
-      import android.provider.OpenableColumns;  
-      import android.view.Gravity;  
-      import android.view.View;  
-      import android.view.ViewGroup;  
-      import android.view.inputmethod.EditorInfo;  
-      import android.webkit.CookieManager;  
-      import android.webkit.DownloadListener;  
-      import android.webkit.URLUtil;  
-      import android.webkit.ValueCallback;  
-      import android.webkit.WebChromeClient;  
-      import android.webkit.WebResourceRequest;  
-      import android.webkit.WebView;  
-      import android.webkit.WebViewClient;  
-      import android.widget.Button;  
-      import android.widget.EditText;  
-      import android.widget.FrameLayout;  
-      import android.widget.HorizontalScrollView;  
-      import android.widget.LinearLayout;  
-      import android.widget.ProgressBar;  
-      import android.widget.ScrollView;  
-      import android.widget.TextView;  
-      import android.widget.Toast;  
-      import java.util.ArrayList;  
-      import java.util.HashSet;  
-      import java.util.Set;  
-
-      public class MainActivity extends Activity {  
-          private static final int FILE_CHOOSER_REQUEST = 501;  
-          private static final int STORAGE_PERMISSION_REQUEST = 502;  
-
-          private LinearLayout root, shortcutsRow, controlsRow, tabsRow, bottomRow;  
-          private FrameLayout browserFrame;  
-          private EditText addressBar;  
-          private ProgressBar progress;  
-          private TextView brand;  
-          private final ArrayList<WebView> pages = new ArrayList<>();  
-          private final ArrayList<String> pageUrls = new ArrayList<>();  
-          private int current = -1;  
-          private boolean darkMode = true;  
-          private ValueCallback<Uri[]> filePathCallback;  
-          private String pendingDownloadUrl;  
-          private String pendingDownloadUserAgent;  
-          private String pendingDownloadDisposition;  
-          private String pendingDownloadMime;  
-          private SharedPreferences prefs;  
-
-          private final String[] shortcutNames = {  
-              "Meta Contact", "Fish Mail", "Meta Auth", "2FA", "Manage", "Instagram"  
-          };  
-          private final String[] shortcutUrls = {  
-              "http://accountscenter.meta.com/account_overview/contact_points",  
-              "https://tempmail.fish/",  
-              "http://auth.meta.com/?waterfall_id",  
-              "https://accountscenter.instagram.com/password_and_security/two_factor/?theme=dark",  
-              "https://accountscenter.instagram.com/manage/",  
-              "https://www.instagram.com/accounts/login/"  
-          };  
-
-          @Override  
-          public void onCreate(Bundle state) {  
-              super.onCreate(state);  
-              prefs = getSharedPreferences("tbrowser_settings", MODE_PRIVATE);  
-              darkMode = prefs.getBoolean("dark_mode", true);  
-              buildInterface();  
-              newTab(prefs.getString("homepage", "https://www.google.com"));  
-          }  
-
-          private int bg() { return darkMode ? Color.rgb(12, 15, 22) : Color.rgb(246, 248, 252); }  
-          private int panel() { return darkMode ? Color.rgb(24, 29, 40) : Color.WHITE; }  
-          private int fg() { return darkMode ? Color.rgb(240, 244, 255) : Color.rgb(25, 31, 43); }  
-          private int muted() { return darkMode ? Color.rgb(155, 168, 190) : Color.rgb(100, 110, 126); }  
-          private int accent() { return Color.rgb(177, 104, 255); }  
-
-          private void buildInterface() {  
-              root = new LinearLayout(this);  
-              root.setOrientation(LinearLayout.VERTICAL);  
-              root.setPadding(dp(5), dp(5), dp(5), dp(4));  
-              root.setBackgroundColor(bg());  
-
-              // One compact toolbar: DraculaWeb, URL bar, New Tab and menu on the same line.  
-              LinearLayout toolbar = new LinearLayout(this);  
-              toolbar.setGravity(Gravity.CENTER_VERTICAL);  
-
-              brand = new TextView(this);  
-              brand.setText("🧛 DraculaWeb");  
-              brand.setTextSize(14);  
-              brand.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD));  
-              brand.setTextColor(Color.rgb(190, 132, 255));  
-              brand.setLetterSpacing(0.01f);  
-              brand.setGravity(Gravity.CENTER_VERTICAL);  
-              brand.setSingleLine(true);  
-              brand.setIncludeFontPadding(false);  
-              brand.setPadding(dp(2), 0, dp(2), 0);  
-              LinearLayout.LayoutParams brandLp = new LinearLayout.LayoutParams(-2, dp(42));  
-              brandLp.gravity = Gravity.CENTER_VERTICAL;  
-              toolbar.addView(brand, brandLp);  
-
-              addressBar = new EditText(this);  
-              addressBar.setSingleLine(true);  
-              addressBar.setTextSize(13);  
-              addressBar.setGravity(Gravity.CENTER_VERTICAL);  
-              addressBar.setIncludeFontPadding(false);  
-              addressBar.setHint("Search or URL");  
-              addressBar.setHintTextColor(muted());  
-              addressBar.setTextColor(fg());  
-              addressBar.setPadding(dp(9), 0, dp(5), 0);  
-              addressBar.setBackground(roundDrawable(panel(), dp(13)));  
-              addressBar.setImeOptions(EditorInfo.IME_ACTION_GO);  
-              addressBar.setSelectAllOnFocus(true);  
-              addressBar.setOnEditorActionListener((v, actionId, event) -> {  
-                  if (actionId == EditorInfo.IME_ACTION_GO || actionId == EditorInfo.IME_ACTION_DONE ||  
-                      (event != null && event.getKeyCode() == android.view.KeyEvent.KEYCODE_ENTER)) {  
-                      goToAddress(); return true;  
-                  }  
-                  return false;  
-              });  
-              LinearLayout.LayoutParams urlLp = new LinearLayout.LayoutParams(0, dp(40), 1);  
-              urlLp.leftMargin = dp(6);  
-              toolbar.addView(addressBar, urlLp);  
-
-              Button newTabBtn = makeButton("＋");  
-              newTabBtn.setTextSize(20);  
-              newTabBtn.setPadding(dp(7), 0, dp(7), 0);  
-              LinearLayout.LayoutParams plusLp = new LinearLayout.LayoutParams(dp(40), dp(40));  
-              plusLp.leftMargin = dp(4);  
-              toolbar.addView(newTabBtn, plusLp);  
-              newTabBtn.setOnClickListener(v -> newTab("https://www.google.com"));  
-
-              Button menuBtn = makeButton("⋮");  
-              menuBtn.setTextSize(22);  
-              menuBtn.setPadding(0, 0, 0, 0);  
-              LinearLayout.LayoutParams menuLp = new LinearLayout.LayoutParams(dp(36), dp(40));  
-              menuLp.leftMargin = dp(2);  
-              toolbar.addView(menuBtn, menuLp);  
-              menuBtn.setOnClickListener(v -> showBrowserMenu());  
-              root.addView(toolbar);  
-
-              HorizontalScrollView shortcutScroll = new HorizontalScrollView(this);  
-              shortcutScroll.setHorizontalScrollBarEnabled(false);  
-              shortcutsRow = new LinearLayout(this);  
-              shortcutsRow.setPadding(0, dp(5), 0, dp(4));  
-              for (int i = 0; i < shortcutUrls.length; i++) {  
-                  final int index = i;  
-                  Button b = makeButton(shortcutNames[i]);  
-                  b.setTextSize(10);  
-                  b.setPadding(dp(8), 0, dp(8), 0);  
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(31));  
-                  lp.rightMargin = dp(4);  
-                  shortcutsRow.addView(b, lp);  
-                  b.setOnClickListener(v -> loadInCurrent(shortcutUrls[index]));  
-              }  
-              shortcutScroll.addView(shortcutsRow);  
-              root.addView(shortcutScroll);  
-
-              HorizontalScrollView tabScroll = new HorizontalScrollView(this);  
-              tabScroll.setHorizontalScrollBarEnabled(false);  
-              tabsRow = new LinearLayout(this);  
-              tabScroll.addView(tabsRow);  
-              root.addView(tabScroll);  
-
-              progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);  
-              progress.setMax(100);  
-              progress.setProgress(0);  
-              root.addView(progress, new LinearLayout.LayoutParams(-1, dp(2)));  
-
-              browserFrame = new FrameLayout(this);  
-              LinearLayout.LayoutParams browserLp = new LinearLayout.LayoutParams(-1, 0, 1);  
-              browserLp.topMargin = dp(2);  
-              root.addView(browserFrame, browserLp);  
-
-              // Persistent bottom controls: clear cookies and clear cache stay outside the menu.  
-              bottomRow = new LinearLayout(this);  
-              bottomRow.setGravity(Gravity.CENTER_VERTICAL);  
-              bottomRow.setPadding(0, dp(4), 0, 0);  
-              Button clearCookiesBtn = makeButton("🧹 Clear Cookies");  
-              clearCookiesBtn.setTextSize(11);  
-              Button clearCacheBtn = makeButton("Clear Cache");  
-              clearCacheBtn.setTextSize(11);  
-              LinearLayout.LayoutParams bottomBtnLp = new LinearLayout.LayoutParams(0, dp(34), 1);  
-              bottomBtnLp.leftMargin = dp(2);  
-              bottomBtnLp.rightMargin = dp(2);  
-              bottomRow.addView(clearCookiesBtn, new LinearLayout.LayoutParams(0, dp(34), 1));  
-              bottomRow.addView(clearCacheBtn, new LinearLayout.LayoutParams(0, dp(34), 1));  
-              clearCookiesBtn.setOnClickListener(v -> clearCookies());  
-              clearCacheBtn.setOnClickListener(v -> clearCache());  
-              root.addView(bottomRow, new LinearLayout.LayoutParams(-1, dp(38)));  
-
-              setContentView(root);  
-              applyColors();  
-          }  
-
-          private void showBrowserMenu() {  
-              String[] items = {"🔖 Bookmarks", "🕘 History", "📥 Downloads", "🧩 Extensions",  
-                  darkMode ? "☀ Light Mode" : "🌙 Dark Mode", "🖥 Desktop Site", "↻ Reload",  
-                  "↗ Share Page", "⌕ Find in Page", "⌂ Home", "🧹 Clear Browsing Data", "⚙ Settings", "ⓘ About DraculaWeb"};  
-              new AlertDialog.Builder(this)  
-                  .setTitle("🧛 DraculaWeb")  
-                  .setItems(items, (dialog, which) -> {  
-                      switch (which) {  
-                          case 0: showBookmarks(); break;  
-                          case 1: showHistory(); break;  
-                          case 2: showDownloads(); break;  
-                          case 3: showExtensionsInfo(); break;  
-                          case 4:  
-                              darkMode = !darkMode;  
-                              prefs.edit().putBoolean("dark_mode", darkMode).apply();  
-                              rebuildKeepingPages(); break;  
-                          case 5: toggleDesktopSite(); break;  
-                          case 6: if (active() != null) active().reload(); break;  
-                          case 7: shareCurrentPage(); break;  
-                          case 8: findInPage(); break;  
-                          case 9: loadInCurrent(prefs.getString("homepage", "https://www.google.com")); break;  
-                          case 10: clearBrowsingData(); break;  
-                          case 11: showSettings(); break;  
-                          case 12: new AlertDialog.Builder(this).setTitle("About DraculaWeb")  
-                              .setMessage("DraculaWeb 2.3\nA compact Android WebView browser.")  
-                              .setPositiveButton("OK", null).show(); break;  
-                      }  
-                  }).show();  
-          }  
-
-          private void showExtensionsInfo() {  
-              new AlertDialog.Builder(this).setTitle("Extensions")  
-                  .setMessage("Chrome Web Store extensions cannot be installed directly in Android WebView. This build does not yet support real Chrome extensions.")  
-                  .setPositiveButton("Open Chrome Web Store", (d, w) -> loadInCurrent("https://chromewebstore.google.com/"))  
-                  .setNegativeButton("Close", null).show();  
-          }  
-
-          private void showHistory() {  
-              Set<String> saved = prefs.getStringSet("history", new HashSet<>());  
-              if (saved.isEmpty()) { Toast.makeText(this, "No history yet", Toast.LENGTH_SHORT).show(); return; }  
-              ArrayList<String> list = new ArrayList<>(saved);  
-              java.util.Collections.reverse(list);  
-              String[] items = list.toArray(new String[0]);  
-              new AlertDialog.Builder(this).setTitle("History")  
-                  .setItems(items, (d, which) -> loadInCurrent(items[which]))  
-                  .setNeutralButton("Clear history", (d, w) -> { prefs.edit().remove("history").apply(); Toast.makeText(this, "History cleared", Toast.LENGTH_SHORT).show(); })  
-                  .setNegativeButton("Close", null).show();  
-          }  
-
-          private void addHistory(String url) {  
-              if (url == null || !(url.startsWith("http://") || url.startsWith("https://"))) return;  
-              Set<String> old = prefs.getStringSet("history", new HashSet<>());  
-              ArrayList<String> list = new ArrayList<>(old);  
-              list.remove(url); list.add(url);  
-              while (list.size() > 100) list.remove(0);  
-              prefs.edit().putStringSet("history", new HashSet<>(list)).apply();  
-          }  
-
-          private void toggleDesktopSite() {  
-              WebView w = active(); if (w == null) return;  
-              android.webkit.WebSettings settings = w.getSettings();  
-              boolean desktop = !settings.getUserAgentString().contains("DraculaDesktop");  
-              String ua = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 DraculaDesktop";  
-              settings.setUserAgentString(desktop ? ua : android.webkit.WebSettings.getDefaultUserAgent(this));  
-              w.reload();  
-          }  
-
-          private void shareCurrentPage() {  
-              WebView w = active(); if (w == null || w.getUrl() == null) return;  
-              Intent share = new Intent(Intent.ACTION_SEND); share.setType("text/plain");  
-              share.putExtra(Intent.EXTRA_TEXT, w.getUrl());  
-              startActivity(Intent.createChooser(share, "Share page"));  
-          }  
-
-          private void findInPage() {  
-              EditText input = new EditText(this); input.setSingleLine(true); input.setHint("Find text");  
-              new AlertDialog.Builder(this).setTitle("Find in page").setView(input)  
-                  .setPositiveButton("Find", (d, w) -> { if (active() != null) active().findAllAsync(input.getText().toString()); })  
-                  .setNegativeButton("Cancel", null).show();  
-          }  
-
-          private void clearBrowsingData() {  
-              new AlertDialog.Builder(this).setTitle("Clear browsing data")  
-                  .setMessage("Clear history, cookies and cached files?")  
-                  .setNegativeButton("Cancel", null)  
-                  .setPositiveButton("Clear", (d, w) -> {  
-                      prefs.edit().remove("history").remove("bookmarks").apply();  
-                      clearCookies(); clearCache();  
-                  }).show();  
-          }  
-
-          private void showSettings() {  
-              boolean clearOnExit = prefs.getBoolean("clear_on_exit", false);  
-              String[] items = {"Dark / Light Mode", "Homepage", "Search Engine",  
-                  clearOnExit ? "✓ Clear browsing data on exit" : "□ Clear browsing data on exit"};  
-              new AlertDialog.Builder(this).setTitle("Settings").setItems(items, (d, which) -> {  
-                  if (which == 0) { darkMode = !darkMode; prefs.edit().putBoolean("dark_mode", darkMode).apply(); rebuildKeepingPages(); }  
-                  else if (which == 1) editPreferenceUrl("homepage", "Homepage URL", "https://www.google.com");  
-                  else if (which == 2) editPreferenceUrl("search_engine", "Search URL (use %s for query)", "https://www.google.com/search?q=%s");  
-                  else if (which == 3) {  
-                      boolean enabled = !prefs.getBoolean("clear_on_exit", false);  
-                      prefs.edit().putBoolean("clear_on_exit", enabled).apply();  
-                      Toast.makeText(this, enabled ? "Clear on exit enabled" : "Clear on exit disabled", Toast.LENGTH_SHORT).show();  
-                  }  
-              }).show();  
-          }  
-
-          private void editPreferenceUrl(String key, String title, String fallback) {  
-              EditText input = new EditText(this); input.setSingleLine(true);  
-              input.setText(prefs.getString(key, fallback));  
-              new AlertDialog.Builder(this).setTitle(title).setView(input)  
-                  .setPositiveButton("Save", (d, w) -> prefs.edit().putString(key, input.getText().toString().trim()).apply())  
-                  .setNegativeButton("Cancel", null).show();  
-          }  
-
-          private void rebuildKeepingPages() {  
-              // Rebuilds the chrome while keeping the existing WebViews alive.  
-              if (root != null) {  
-                  if (browserFrame != null) {  
-                      for (WebView w : pages) {  
-                          if (w.getParent() != null) ((ViewGroup) w.getParent()).removeView(w);  
-                      }  
-                  }  
-              }  
-              buildInterface();  
-              for (int i = 0; i < pages.size(); i++) {  
-                  browserFrame.addView(pages.get(i), new FrameLayout.LayoutParams(-1, -1));  
-                  pages.get(i).setVisibility(i == current ? View.VISIBLE : View.GONE);  
-              }  
-              refreshTabs();  
-              updateAddressBar();  
-          }  
-
-          private void applyColors() {  
-              root.setBackgroundColor(bg());  
-              if (brand != null) brand.setTextColor(accent());  
-              if (addressBar != null) {  
-                  addressBar.setTextColor(fg());  
-                  addressBar.setHintTextColor(muted());  
-                  addressBar.setBackground(roundDrawable(panel(), dp(18)));  
-              }  
-              if (progress != null) progress.setProgressTintList(android.content.res.ColorStateList.valueOf(accent()));  
-          }  
-
-          private android.graphics.drawable.GradientDrawable roundDrawable(int color, int radius) {  
-              android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();  
-              d.setColor(color);  
-              d.setCornerRadius(radius);  
-              d.setStroke(dp(1), darkMode ? Color.rgb(43, 53, 72) : Color.rgb(220, 226, 236));  
-              return d;  
-          }  
-
-          private int dp(float value) {  
-              return (int) (value * getResources().getDisplayMetrics().density + 0.5f);  
-          }  
-
-          private Button makeButton(String text) {  
-              Button b = new Button(this);  
-              b.setText(text);  
-              b.setTextSize(12);  
-              b.setAllCaps(false);  
-              b.setTextColor(fg());  
-              b.setPadding(dp(10), 0, dp(10), 0);  
-              b.setBackground(roundDrawable(panel(), dp(14)));  
-              if (Build.VERSION.SDK_INT >= 21) b.setStateListAnimator(null);  
-              return b;  
-          }  
-
-          private void addControl(String label, Runnable action) {  
-              Button b = makeButton(label);  
-              LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(40));  
-              lp.rightMargin = dp(5);  
-              controlsRow.addView(b, lp);  
-              b.setOnClickListener(v -> action.run());  
-          }  
-
-          private void addBottomButton(String label, Runnable action) {  
-              Button b = makeButton(label);  
-              b.setTextSize(11);  
-              LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(38), 1);  
-              lp.leftMargin = dp(2);  
-              lp.rightMargin = dp(2);  
-              bottomRow.addView(b, lp);  
-              b.setOnClickListener(v -> action.run());  
-          }  
-
-          private WebView active() {  
-              if (current < 0 || current >= pages.size()) return null;  
-              return pages.get(current);  
-          }  
-
-          private void goToAddress() {  
-              String text = addressBar.getText().toString().trim();  
-              if (text.isEmpty()) return;  
-              String target;  
-              if (text.matches("(?i)^https?://.*")) {  
-                  target = text;  
-              } else if (text.matches("(?i)^[a-z0-9.-]+\\.[a-z]{2,}(:[0-9]+)?(/.*)?$")) {  
-                  target = "https://" + text;  
-              } else {  
-                  try {  
-                      target = prefs.getString("search_engine", "https://www.google.com/search?q=%s").replace("%s", Uri.encode(text));  
-                  } catch (Exception e) {  
-                      target = "https://www.google.com";  
-                  }  
-              }  
-              loadInCurrent(target);  
-          }  
-
-          private void loadInCurrent(String url) {  
-              if (active() == null) newTab(url);  
-              else {  
-                  pageUrls.set(current, url);  
-                  active().loadUrl(url);  
-                  updateAddressBar();  
-              }  
-          }  
-
-          private void updateAddressBar() {  
-              if (addressBar == null) return;  
-              WebView w = active();  
-              String url = w != null ? w.getUrl() : "";  
-              addressBar.setText(url == null ? "" : url);  
-              if (w != null) addressBar.setSelection(addressBar.getText().length());  
-          }  
-
-          private void newTab(String url) {  
-              WebView w = new WebView(this);  
-              w.setBackgroundColor(Color.WHITE);  
-              w.getSettings().setJavaScriptEnabled(true);  
-              w.getSettings().setDomStorageEnabled(true);  
-              w.getSettings().setLoadsImagesAutomatically(true);  
-              w.getSettings().setSupportMultipleWindows(false);  
-              w.getSettings().setJavaScriptCanOpenWindowsAutomatically(false);  
-
-              w.setWebViewClient(new WebViewClient() {  
-                  @Override  
-                  public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {  
-                      Uri uri = request.getUrl();  
-                      String scheme = uri.getScheme();  
-                      if (scheme != null && (scheme.equals("http") || scheme.equals("https"))) return false;  
-                      try {  
-                          startActivity(new Intent(Intent.ACTION_VIEW, uri));  
-                      } catch (ActivityNotFoundException ex) {  
-                          Toast.makeText(MainActivity.this, "No app can open this link", Toast.LENGTH_SHORT).show();  
-                      }  
-                      return true;  
-                  }  
-
-                  @Override  
-                  public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {  
-                      if (view == active()) {  
-                          progress.setVisibility(View.VISIBLE);  
-                          progress.setProgress(10);  
-                          addressBar.setText(url);  
-                      }  
-                  }  
-
-                  @Override  
-                  public void onPageFinished(WebView view, String url) {  
-                      if (view == active()) {  
-                          progress.setProgress(100);  
-                          progress.setVisibility(View.GONE);  
-                          addressBar.setText(url);  
-                      }  
-                      int index = pages.indexOf(view);  
-                      if (index >= 0) pageUrls.set(index, url);  
-                      addHistory(url);  
-                      refreshTabs();  
-                  }  
-              });  
-
-              w.setWebChromeClient(new WebChromeClient() {  
-                  @Override  
-                  public void onProgressChanged(WebView view, int newProgress) {  
-                      if (view == active()) {  
-                          progress.setVisibility(newProgress >= 100 ? View.GONE : View.VISIBLE);  
-                          progress.setProgress(newProgress);  
-                      }  
-                  }  
-
-                  @Override  
-                  public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> callback,  
-                                                   FileChooserParams params) {  
-                      if (filePathCallback != null) filePathCallback.onReceiveValue(null);  
-                      filePathCallback = callback;  
-                      Intent intent;  
-                      try {  
-                          intent = params.createIntent();  
-                          intent.addCategory(Intent.CATEGORY_OPENABLE);  
-                          intent.setType("*/*");  
-                          startActivityForResult(intent, FILE_CHOOSER_REQUEST);  
-                          return true;  
-                      } catch (Exception e) {  
-                          filePathCallback = null;  
-                          Toast.makeText(MainActivity.this, "Cannot open file picker", Toast.LENGTH_SHORT).show();  
-                          return false;  
-                      }  
-                  }  
-              });  
-
-              w.setDownloadListener(new DownloadListener() {  
-                  @Override  
-                  public void onDownloadStart(String url, String userAgent, String contentDisposition,  
-                                              String mimetype, long contentLength) {  
-                      pendingDownloadUrl = url;  
-                      pendingDownloadUserAgent = userAgent;  
-                      pendingDownloadDisposition = contentDisposition;  
-                      pendingDownloadMime = mimetype;  
-                      if (Build.VERSION.SDK_INT <= 28 &&  
-                          checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {  
-                          requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERMISSION_REQUEST);  
-                      } else {  
-                          startDownload(url, userAgent, contentDisposition, mimetype);  
-                      }  
-                  }  
-              });  
-
-              pages.add(w);  
-              pageUrls.add(url);  
-              browserFrame.addView(w, new FrameLayout.LayoutParams(-1, -1));  
-              current = pages.size() - 1;  
-              w.loadUrl(url);  
-              refreshTabs();  
-              updateAddressBar();  
-          }  
-
-          private void startDownload(String url, String userAgent, String disposition, String mime) {  
-              try {  
-                  DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));  
-                  String filename = URLUtil.guessFileName(url, disposition, mime);  
-                  request.setTitle(filename);  
-                  request.setDescription("Downloading with DraculaWeb");  
-                  request.setMimeType(mime);  
-                  request.addRequestHeader("User-Agent", userAgent);  
-                  String cookie = CookieManager.getInstance().getCookie(url);  
-                  if (cookie != null) request.addRequestHeader("Cookie", cookie);  
-                  request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);  
-                  request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);  
-                  DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);  
-                  manager.enqueue(request);  
-                  Toast.makeText(this, "Download started: " + filename, Toast.LENGTH_LONG).show();  
-              } catch (Exception e) {  
-                  Toast.makeText(this, "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show();  
-              }  
-          }  
-
-          @Override  
-          public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {  
-              super.onRequestPermissionsResult(requestCode, permissions, grantResults);  
-              if (requestCode == STORAGE_PERMISSION_REQUEST) {  
-                  if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {  
-                      startDownload(pendingDownloadUrl, pendingDownloadUserAgent, pendingDownloadDisposition, pendingDownloadMime);  
-                  } else {  
-                      Toast.makeText(this, "Storage permission needed to save downloads", Toast.LENGTH_LONG).show();  
-                  }  
-              }  
-          }  
-
-          @Override  
-          protected void onActivityResult(int requestCode, int resultCode, Intent data) {  
-              super.onActivityResult(requestCode, resultCode, data);  
-              if (requestCode == FILE_CHOOSER_REQUEST) {  
-                  if (filePathCallback == null) return;  
-                  Uri[] results = null;  
-                  if (resultCode == RESULT_OK && data != null) {  
-                      Uri result = data.getData();  
-                      if (result != null) results = new Uri[]{result};  
-                      else if (Build.VERSION.SDK_INT >= 21 && data.getClipData() != null) {  
-                          int count = data.getClipData().getItemCount();  
-                          results = new Uri[count];  
-                          for (int i = 0; i < count; i++) results[i] = data.getClipData().getItemAt(i).getUri();  
-                      }  
-                  }  
-                  filePathCallback.onReceiveValue(results);  
-                  filePathCallback = null;  
-              }  
-          }  
-
-          private void refreshTabs() {  
-              if (tabsRow == null) return;  
-              tabsRow.removeAllViews();  
-              for (int i = 0; i < pages.size(); i++) {  
-                  final int index = i;  
-                  LinearLayout tabChip = new LinearLayout(this);  
-                  tabChip.setOrientation(LinearLayout.HORIZONTAL);  
-                  tabChip.setGravity(Gravity.CENTER_VERTICAL);  
-                  tabChip.setBackground(makeTabBackground(i == current));  
-
-                  Button select = makeButton((i == current ? "● " : "") + "Tab " + (i + 1));  
-                  select.setAllCaps(false);  
-                  select.setMinWidth(0);  
-                  select.setPadding(dp(10), 0, dp(6), 0);  
-                  select.setBackgroundColor(Color.TRANSPARENT);  
-                  tabChip.addView(select, new LinearLayout.LayoutParams(-2, dp(36)));  
-                  select.setOnClickListener(v -> {  
-                      current = index;  
-                      for (int j = 0; j < pages.size(); j++) {  
-                          pages.get(j).setVisibility(j == current ? View.VISIBLE : View.GONE);  
-                      }  
-                      refreshTabs();  
-                      updateAddressBar();  
-                  });  
-
-                  Button close = makeButton("×");  
-                  close.setTextSize(18);  
-                  close.setMinWidth(dp(32));  
-                  close.setPadding(dp(4), 0, dp(8), 0);  
-                  close.setContentDescription("Close Tab " + (i + 1));  
-                  close.setBackgroundColor(Color.TRANSPARENT);  
-                  tabChip.addView(close, new LinearLayout.LayoutParams(dp(32), dp(36)));  
-                  close.setOnClickListener(v -> {  
-                      if (pages.size() <= 1) {  
-                          Toast.makeText(this, "Keep at least one tab open", Toast.LENGTH_SHORT).show();  
-                          return;  
-                      }  
-                      int removeIndex = index;  
-                      WebView removed = pages.remove(removeIndex);  
-                      pageUrls.remove(removeIndex);  
-                      browserFrame.removeView(removed);  
-                      removed.stopLoading();  
-                      removed.destroy();  
-                      if (removeIndex < current) current--;  
-                      else if (removeIndex == current) current = Math.min(current, pages.size() - 1);  
-                      for (int j = 0; j < pages.size(); j++) {  
-                          pages.get(j).setVisibility(j == current ? View.VISIBLE : View.GONE);  
-                      }  
-                      refreshTabs();  
-                      updateAddressBar();  
-                  });  
-
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(36));  
-                  lp.rightMargin = dp(6);  
-                  tabsRow.addView(tabChip, lp);  
-              }  
-          }  
-
-          private android.graphics.drawable.Drawable makeTabBackground(boolean selected) {  
-              android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();  
-              bg.setColor(selected ? Color.rgb(24, 48, 58) : Color.rgb(25, 31, 40));  
-              bg.setCornerRadius(dp(10));  
-              bg.setStroke(dp(1), selected ? Color.rgb(91, 219, 202) : Color.rgb(55, 67, 79));  
-              return bg;  
-          }  
-
-          private void closeTab() {  
-              if (pages.size() <= 1) {  
-                  Toast.makeText(this, "Keep at least one tab open", Toast.LENGTH_SHORT).show();  
-                  return;  
-              }  
-              WebView w = pages.remove(current);  
-              pageUrls.remove(current);  
-              browserFrame.removeView(w);  
-              w.stopLoading();  
-              w.destroy();  
-              current = Math.max(0, current - 1);  
-              for (int i = 0; i < pages.size(); i++) pages.get(i).setVisibility(i == current ? View.VISIBLE : View.GONE);  
-              refreshTabs();  
-              updateAddressBar();  
-          }  
-
-          private void goBack() {  
-              WebView w = active();  
-              if (w != null && w.canGoBack()) w.goBack();  
-          }  
-
-          private void goForward() {  
-              WebView w = active();  
-              if (w != null && w.canGoForward()) w.goForward();  
-          }  
-
-          private void saveBookmark() {  
-              WebView w = active();  
-              if (w == null || w.getUrl() == null) return;  
-              Set<String> saved = new HashSet<>(prefs.getStringSet("bookmarks", new HashSet<>()));  
-              saved.add(w.getUrl());  
-              prefs.edit().putStringSet("bookmarks", saved).apply();  
-              Toast.makeText(this, "Bookmark saved", Toast.LENGTH_SHORT).show();  
-          }  
-
-          private void showBookmarks() {  
-              Set<String> saved = prefs.getStringSet("bookmarks", new HashSet<>());  
-              if (saved.isEmpty()) {  
-                  Toast.makeText(this, "No bookmarks saved yet", Toast.LENGTH_SHORT).show();  
-                  return;  
-              }  
-              String[] items = saved.toArray(new String[0]);  
-              new AlertDialog.Builder(this)  
-                  .setTitle("Bookmarks")  
-                  .setItems(items, (dialog, which) -> loadInCurrent(items[which]))  
-                  .setNegativeButton("Close", null)  
-                  .show();  
-          }  
-
-          private void showDownloads() {  
-              try {  
-                  Intent intent = new Intent(DownloadManager.ACTION_VIEW_DOWNLOADS);  
-                  startActivity(intent);  
-              } catch (Exception e) {  
-                  Toast.makeText(this, "Open Downloads from your phone's Files app", Toast.LENGTH_LONG).show();  
-              }  
-          }  
-
-          private void clearCookies() {  
-              WebView currentWeb = active();  
-              String reloadUrl = currentWeb != null ? currentWeb.getUrl() : null;  
-              CookieManager cm = CookieManager.getInstance();  
-              cm.removeAllCookies(value -> {  
-                  cm.flush();  
-                  // Clear WebView site storage too, then reload the current page so  
-                  // the page reflects the signed-out / cookie-cleared state.  
-                  try { android.webkit.WebStorage.getInstance().deleteAllData(); } catch (Exception ignored) {}  
-                  runOnUiThread(() -> {  
-                      for (WebView web : pages) {  
-                          try { web.clearFormData(); web.clearHistory(); } catch (Exception ignored) {}  
-                      }  
-                      if (reloadUrl != null && !reloadUrl.trim().isEmpty() && active() != null) {  
-                          active().loadUrl(reloadUrl);  
-                      }  
-                      Toast.makeText(this, "Cookies and site data cleared; page reloaded", Toast.LENGTH_SHORT).show();  
-                  });  
-              });  
-          }  
-
-          private void clearCache() {  
-              String reloadUrl = active() != null ? active().getUrl() : null;  
-              for (WebView w : pages) {  
-                  w.clearCache(true);  
-                  w.clearHistory();  
-                  w.clearFormData();  
-              }  
-              if (reloadUrl != null && active() != null) active().loadUrl(reloadUrl);  
-              Toast.makeText(this, "Cache cleared; page reloaded", Toast.LENGTH_SHORT).show();  
-          }  
-
-          private void clearDataOnExit() {  
-              if (prefs == null || !prefs.getBoolean("clear_on_exit", false)) return;  
-              try {  
-                  CookieManager cm = CookieManager.getInstance();  
-                  cm.removeAllCookies(null);  
-                  cm.flush();  
-                  android.webkit.WebStorage.getInstance().deleteAllData();  
-              } catch (Exception ignored) {}  
-              for (WebView web : pages) {  
-                  try { web.clearCache(true); web.clearHistory(); web.clearFormData(); } catch (Exception ignored) {}  
-              }  
-              prefs.edit().remove("history").apply();  
-          }  
-
-          @Override  
-          protected void onDestroy() {  
-              clearDataOnExit();  
-              super.onDestroy();  
-          }  
-
-          @Override  
-          public void onBackPressed() {  
-              WebView w = active();  
-              if (w != null && w.canGoBack()) w.goBack();  
-              else if (pages.size() > 1) closeTab();  
-              else super.onBackPressed();  
-          }  
-      }  
-      EOF  
-
-  - name: Install Gradle  
-    run: |  
-      wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip  
-      unzip -q gradle-8.9-bin.zip  
-      echo "$GITHUB_WORKSPACE/gradle-8.9/bin" >> "$GITHUB_PATH"  
-
-  - name: Build APK  
-    run: gradle --no-daemon assembleDebug  
-
-  - name: Upload APK  
-    uses: actions/upload-artifact@v4  
-    with:  
-      name: DraculaWeb-2.5-APK  
-      path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
           distribution: temurin
           java-version: '17'
-      - name: Generate GeckoView browser project
+
+      - name: Create Android project
         shell: bash
         run: |
           mkdir -p app/src/main/java/com/tushar/browser
+          mkdir -p app/src/main/res/drawable
+
           cat > settings.gradle <<'EOF'
-          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-          dependencyResolutionManagement {
-            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-            repositories { google(); mavenCentral(); maven { url 'https://maven.mozilla.org/maven2/' } }
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
           }
-          rootProject.name = 'DraculaWeb'
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "DraculaWeb"
           include ':app'
           EOF
+
           cat > build.gradle <<'EOF'
-          plugins { id 'com.android.application' version '8.6.1' apply false }
+          plugins {
+              id 'com.android.application' version '8.6.1' apply false
+          }
           EOF
+
           cat > gradle.properties <<'EOF'
-          org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           android.useAndroidX=true
           EOF
+
           cat > app/build.gradle <<'EOF'
-          plugins { id 'com.android.application' }
-          android {
-            namespace 'com.tushar.browser'
-            compileSdk 35
-            defaultConfig { applicationId 'com.tushar.browser'; minSdk 23; targetSdk 28; versionCode 6; versionName '2.6-ext-preview' }
-            compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+          plugins {
+              id 'com.android.application'
           }
-          dependencies { implementation 'org.mozilla.geckoview:geckoview-nightly:+' }
+
+          android {
+              namespace 'com.tushar.browser'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.tushar.browser'
+                  minSdk 23
+                  targetSdk 28
+                  versionCode 5
+                  versionName '2.4'
+              }
+          }
           EOF
+
           cat > app/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <uses-permission android:name="android.permission.INTERNET" />
-            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-            <application android:label="DraculaWeb" android:theme="@android:style/Theme.Material.NoActionBar" android:usesCleartextTraffic="true" android:hardwareAccelerated="true">
-              <activity android:name=".MainActivity" android:configChanges="orientation|screenSize|keyboardHidden" android:exported="true">
-                <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
-              </activity>
-            </application>
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
+
+              <application
+                  android:label="DraculaWeb"
+                  android:theme="@android:style/Theme.Material.NoActionBar"
+                  android:usesCleartextTraffic="true"
+                  android:hardwareAccelerated="true">
+                  <activity
+                      android:name=".MainActivity"
+                      android:configChanges="orientation|screenSize|keyboardHidden"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
           </manifest>
           EOF
+
           cat > app/src/main/java/com/tushar/browser/MainActivity.java <<'EOF'
           package com.tushar.browser;
-          import android.app.*;
-          import android.os.Bundle;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.app.DownloadManager;
+          import android.content.ActivityNotFoundException;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
           import android.graphics.Color;
-          import android.graphics.Typeface;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.Environment;
+          import android.provider.OpenableColumns;
           import android.view.Gravity;
           import android.view.View;
           import android.view.ViewGroup;
           import android.view.inputmethod.EditorInfo;
-          import android.widget.*;
-          import org.mozilla.geckoview.*;
-          import java.util.*;
+          import android.webkit.CookieManager;
+          import android.webkit.DownloadListener;
+          import android.webkit.URLUtil;
+          import android.webkit.ValueCallback;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.widget.Button;
+          import android.widget.EditText;
+          import android.widget.FrameLayout;
+          import android.widget.HorizontalScrollView;
+          import android.widget.LinearLayout;
+          import android.widget.ProgressBar;
+          import android.widget.ScrollView;
+          import android.widget.TextView;
+          import android.widget.Toast;
+          import java.util.ArrayList;
+          import java.util.HashSet;
+          import java.util.Set;
 
           public class MainActivity extends Activity {
-            final int BG=Color.rgb(12,18,27), PANEL=Color.rgb(22,32,45), TEAL=Color.rgb(31,190,177), FG=Color.rgb(238,246,250), MUTED=Color.rgb(148,166,180);
-            GeckoRuntime runtime; LinearLayout tabs; EditText address; FrameLayout pageHost;
-            final ArrayList<GeckoSession> sessions=new ArrayList<>(); final ArrayList<GeckoView> views=new ArrayList<>(); final ArrayList<String> urls=new ArrayList<>(); int active=-1;
-            @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);runtime=GeckoRuntime.create(this);build();newTab("https://www.google.com");}
-            TextView text(String s,int size,int color){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);t.setGravity(Gravity.CENTER_VERTICAL);return t;}
-            Button btn(String s){Button b=new Button(this);b.setText(s);b.setTextColor(FG);b.setAllCaps(false);b.setTextSize(12);b.setPadding(4,0,4,0);b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(PANEL));return b;}
-            android.graphics.drawable.GradientDrawable shape(int color){android.graphics.drawable.GradientDrawable d=new android.graphics.drawable.GradientDrawable();d.setColor(color);d.setCornerRadius(18);d.setStroke(1,TEAL);return d;}
-            void build(){
-              LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(BG);setContentView(root);
-              LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);top.setPadding(5,4,5,4);root.addView(top,new LinearLayout.LayoutParams(-1,52));
-              TextView brand=text("🧛 DraculaWeb",15,TEAL);brand.setTypeface(Typeface.DEFAULT,Typeface.BOLD);brand.setSingleLine(true);top.addView(brand,new LinearLayout.LayoutParams(116,-1));
-              address=new EditText(this);address.setSingleLine(true);address.setTextSize(13);address.setTextColor(FG);address.setHintTextColor(MUTED);address.setHint("Search or URL");address.setPadding(8,0,8,0);address.setBackgroundTintList(android.content.res.ColorStateList.valueOf(TEAL));address.setImeOptions(EditorInfo.IME_ACTION_GO);top.addView(address,new LinearLayout.LayoutParams(0,40,1));
-              address.setOnEditorActionListener((v,a,e)->{if(a==EditorInfo.IME_ACTION_GO||a==EditorInfo.IME_ACTION_DONE){navigate(address.getText().toString());return true;}return false;});
-              Button plus=btn("＋");top.addView(plus,new LinearLayout.LayoutParams(40,42));plus.setOnClickListener(v->newTab("https://www.google.com"));Button menu=btn("⋮");top.addView(menu,new LinearLayout.LayoutParams(40,42));menu.setOnClickListener(v->showMenu());
-              HorizontalScrollView sc=new HorizontalScrollView(this);sc.setHorizontalScrollBarEnabled(false);tabs=new LinearLayout(this);tabs.setPadding(5,3,5,3);sc.addView(tabs);root.addView(sc,new LinearLayout.LayoutParams(-1,42));
-              pageHost=new FrameLayout(this);root.addView(pageHost,new LinearLayout.LayoutParams(-1,0,1));
-              LinearLayout bottom=new LinearLayout(this);bottom.setPadding(5,2,5,2);bottom.setBackgroundColor(PANEL);root.addView(bottom,new LinearLayout.LayoutParams(-1,38));Button cc=btn("Clear Cookies");Button cache=btn("Clear Cache");bottom.addView(cc,new LinearLayout.LayoutParams(0,32,1));bottom.addView(cache,new LinearLayout.LayoutParams(0,32,1));
-              cc.setOnClickListener(v->confirmClear("Clear cookies and site storage?",org.mozilla.geckoview.StorageController.ClearFlags.COOKIES|org.mozilla.geckoview.StorageController.ClearFlags.DOM_STORAGES));cache.setOnClickListener(v->confirmClear("Clear temporary cache?",org.mozilla.geckoview.StorageController.ClearFlags.ALL_CACHES));
-            }
-            void confirmClear(String message,int flags){new AlertDialog.Builder(this).setMessage(message).setNegativeButton("Cancel",null).setPositiveButton("Clear",(d,w)->runtime.getStorageController().clearData(flags).accept(x->runOnUiThread(()->{Toast.makeText(this,"Cleared",Toast.LENGTH_SHORT).show();if(active>=0)sessions.get(active).reload();}),e->runOnUiThread(()->Toast.makeText(this,"Clear failed: "+e.getMessage(),Toast.LENGTH_LONG).show()))).show();}
-            void newTab(String u){GeckoSession s=new GeckoSession();s.open(runtime);GeckoView g=new GeckoView(this);g.setSession(s);sessions.add(s);views.add(g);urls.add(u);activate(sessions.size()-1);s.loadUri(u);}
-            void activate(int i){if(i<0||i>=sessions.size())return;active=i;pageHost.removeAllViews();GeckoView g=views.get(i);if(g.getParent()!=null)((ViewGroup)g.getParent()).removeView(g);pageHost.addView(g,new FrameLayout.LayoutParams(-1,-1));address.setText(urls.get(i));drawTabs();}
-            void drawTabs(){tabs.removeAllViews();for(int i=0;i<sessions.size();i++){final int ix=i;LinearLayout p=new LinearLayout(this);p.setGravity(Gravity.CENTER);p.setPadding(8,0,4,0);p.setBackground(shape(i==active?TEAL:PANEL));TextView title=text("Tab "+(i+1),12,i==active?BG:FG);TextView close=text(" × ",16,i==active?BG:TEAL);p.addView(title);p.addView(close);title.setOnClickListener(v->activate(ix));close.setOnClickListener(v->closeTab(ix));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,34);lp.setMargins(3,0,3,0);tabs.addView(p,lp);}}
-            void closeTab(int i){if(sessions.size()==1){Toast.makeText(this,"Keep at least one tab open",Toast.LENGTH_SHORT).show();return;}sessions.get(i).close();sessions.remove(i);views.remove(i);urls.remove(i);if(active>=sessions.size())active=sessions.size()-1;else if(i<active)active--;activate(active);}
-            void navigate(String raw){String q=raw.trim();if(q.isEmpty()||active<0)return;String u;if(q.matches("(?i)^https?://.*"))u=q;else if(q.contains(".")&&!q.contains(" "))u="https://"+q;else u="https://www.google.com/search?q="+android.net.Uri.encode(q);urls.set(active,u);sessions.get(active).loadUri(u);address.setText(u);address.clearFocus();}
-            void open(String u){if(active<0)newTab(u);else{urls.set(active,u);sessions.get(active).loadUri(u);address.setText(u);}}
-            void showMenu(){String[] items={"Extensions","Firefox Add-ons Store","Chrome Web Store","Installed Extensions","Reload","Share Page","Settings","About DraculaWeb"};new AlertDialog.Builder(this).setTitle("DraculaWeb").setItems(items,(d,i)->{switch(i){case 0:extensionDialog();break;case 1:open("https://addons.mozilla.org/android/");break;case 2:open("https://chromewebstore.google.com/");Toast.makeText(this,"Chrome Store can be browsed, but Chrome extensions cannot be installed in GeckoView.",Toast.LENGTH_LONG).show();break;case 3:listExtensions();break;case 4:if(active>=0)sessions.get(active).reload();break;case 5:if(active>=0){android.content.Intent in=new android.content.Intent(android.content.Intent.ACTION_SEND);in.setType("text/plain");in.putExtra(android.content.Intent.EXTRA_TEXT,urls.get(active));startActivity(android.content.Intent.createChooser(in,"Share page"));}break;case 6:settings();break;case 7:new AlertDialog.Builder(this).setMessage("DraculaWeb 2.6 Extension Preview\nGeckoView engine. Firefox WebExtensions require a Mozilla-signed compatible .xpi.").setPositiveButton("OK",null).show();break;}}).show();}
-            void extensionDialog(){EditText input=new EditText(this);input.setSingleLine(true);input.setHint("Direct HTTPS .xpi URL");new AlertDialog.Builder(this).setTitle("Install Extension").setMessage("Paste a direct link to a Mozilla-signed compatible .xpi package. A store page URL is not an install package.").setView(input).setNeutralButton("Browse Add-ons",(d,w)->open("https://addons.mozilla.org/android/")).setNegativeButton("Cancel",null).setPositiveButton("Install",(d,w)->{String u=input.getText().toString().trim();if(!u.startsWith("https://")){Toast.makeText(this,"Enter an HTTPS XPI URL",Toast.LENGTH_LONG).show();return;}runtime.getWebExtensionController().install(u).accept(ext->runOnUiThread(()->Toast.makeText(this,"Installed: "+ext.id,Toast.LENGTH_LONG).show()),err->runOnUiThread(()->new AlertDialog.Builder(this).setTitle("Install failed").setMessage(String.valueOf(err.getMessage())+"\nOnly compatible, Mozilla-signed XPI packages can install.").setPositiveButton("OK",null).show()));}).show();}
-            void listExtensions(){runtime.getWebExtensionController().list().accept(list->runOnUiThread(()->{if(list.isEmpty()){new AlertDialog.Builder(this).setMessage("No extensions installed.").setPositiveButton("OK",null).show();return;}String[] names=new String[list.size()];for(int i=0;i<list.size();i++)names[i]=list.get(i).id;new AlertDialog.Builder(this).setTitle("Installed Extensions").setItems(names,(d,n)->new AlertDialog.Builder(this).setMessage(names[n]).setPositiveButton("OK",null).show()).setPositiveButton("Close",null).show();}),e->runOnUiThread(()->Toast.makeText(this,"Could not load extensions",Toast.LENGTH_SHORT).show()));}
-            void settings(){String[] items={"Firefox Add-ons Store","Chrome Web Store","Clear browsing data"};new AlertDialog.Builder(this).setTitle("Settings").setItems(items,(d,i)->{if(i==0)open("https://addons.mozilla.org/android/");else if(i==1){open("https://chromewebstore.google.com/");Toast.makeText(this,"Chrome extensions cannot be installed in GeckoView.",Toast.LENGTH_LONG).show();}else confirmClear("Clear all website data?",org.mozilla.geckoview.StorageController.ClearFlags.ALL);}).show();}
-            @Override public void onBackPressed(){if(active>=0&&sessions.get(active).canGoBack()){sessions.get(active).goBack();return;}if(sessions.size()>1){closeTab(active);return;}super.onBackPressed();}
+              private static final int FILE_CHOOSER_REQUEST = 501;
+              private static final int STORAGE_PERMISSION_REQUEST = 502;
+
+              private LinearLayout root, shortcutsRow, controlsRow, tabsRow, bottomRow;
+              private FrameLayout browserFrame;
+              private EditText addressBar;
+              private ProgressBar progress;
+              private TextView brand;
+              private final ArrayList<WebView> pages = new ArrayList<>();
+              private final ArrayList<String> pageUrls = new ArrayList<>();
+              private int current = -1;
+              private boolean darkMode = true;
+              private ValueCallback<Uri[]> filePathCallback;
+              private String pendingDownloadUrl;
+              private String pendingDownloadUserAgent;
+              private String pendingDownloadDisposition;
+              private String pendingDownloadMime;
+              private SharedPreferences prefs;
+
+              private final String[] shortcutNames = {
+                  "Meta Contact", "Fish Mail", "Meta Auth", "2FA", "Manage", "Instagram"
+              };
+              private final String[] shortcutUrls = {
+                  "http://accountscenter.meta.com/account_overview/contact_points",
+                  "https://tempmail.fish/",
+                  "http://auth.meta.com/?waterfall_id",
+                  "https://accountscenter.instagram.com/password_and_security/two_factor/?theme=dark",
+                  "https://accountscenter.instagram.com/manage/",
+                  "https://www.instagram.com/accounts/login/"
+              };
+
+              @Override
+              public void onCreate(Bundle state) {
+                  super.onCreate(state);
+                  prefs = getSharedPreferences("tbrowser_settings", MODE_PRIVATE);
+                  darkMode = prefs.getBoolean("dark_mode", true);
+                  buildInterface();
+                  newTab(prefs.getString("homepage", "https://www.google.com"));
+              }
+
+              private int bg() { return darkMode ? Color.rgb(12, 15, 22) : Color.rgb(246, 248, 252); }
+              private int panel() { return darkMode ? Color.rgb(24, 29, 40) : Color.WHITE; }
+              private int fg() { return darkMode ? Color.rgb(240, 244, 255) : Color.rgb(25, 31, 43); }
+              private int muted() { return darkMode ? Color.rgb(155, 168, 190) : Color.rgb(100, 110, 126); }
+              private int accent() { return Color.rgb(177, 104, 255); }
+
+              private void buildInterface() {
+                  root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setPadding(dp(5), dp(5), dp(5), dp(4));
+                  root.setBackgroundColor(bg());
+
+                  // One compact toolbar: DraculaWeb, URL bar, New Tab and menu on the same line.
+                  LinearLayout toolbar = new LinearLayout(this);
+                  toolbar.setGravity(Gravity.CENTER_VERTICAL);
+
+                  brand = new TextView(this);
+                  brand.setText("🧛 DraculaWeb");
+                  brand.setTextSize(14);
+                  brand.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD));
+                  brand.setTextColor(Color.rgb(190, 132, 255));
+                  brand.setLetterSpacing(0.01f);
+                  brand.setGravity(Gravity.CENTER_VERTICAL);
+                  brand.setSingleLine(true);
+                  brand.setIncludeFontPadding(false);
+                  brand.setPadding(dp(2), 0, dp(2), 0);
+                  LinearLayout.LayoutParams brandLp = new LinearLayout.LayoutParams(-2, dp(42));
+                  brandLp.gravity = Gravity.CENTER_VERTICAL;
+                  toolbar.addView(brand, brandLp);
+
+                  addressBar = new EditText(this);
+                  addressBar.setSingleLine(true);
+                  addressBar.setTextSize(13);
+                  addressBar.setGravity(Gravity.CENTER_VERTICAL);
+                  addressBar.setIncludeFontPadding(false);
+                  addressBar.setHint("Search or URL");
+                  addressBar.setHintTextColor(muted());
+                  addressBar.setTextColor(fg());
+                  addressBar.setPadding(dp(9), 0, dp(5), 0);
+                  addressBar.setBackground(roundDrawable(panel(), dp(13)));
+                  addressBar.setImeOptions(EditorInfo.IME_ACTION_GO);
+                  addressBar.setSelectAllOnFocus(true);
+                  addressBar.setOnEditorActionListener((v, actionId, event) -> {
+                      if (actionId == EditorInfo.IME_ACTION_GO || actionId == EditorInfo.IME_ACTION_DONE ||
+                          (event != null && event.getKeyCode() == android.view.KeyEvent.KEYCODE_ENTER)) {
+                          goToAddress(); return true;
+                      }
+                      return false;
+                  });
+                  LinearLayout.LayoutParams urlLp = new LinearLayout.LayoutParams(0, dp(40), 1);
+                  urlLp.leftMargin = dp(6);
+                  toolbar.addView(addressBar, urlLp);
+
+                  Button newTabBtn = makeButton("＋");
+                  newTabBtn.setTextSize(20);
+                  newTabBtn.setPadding(dp(7), 0, dp(7), 0);
+                  LinearLayout.LayoutParams plusLp = new LinearLayout.LayoutParams(dp(40), dp(40));
+                  plusLp.leftMargin = dp(4);
+                  toolbar.addView(newTabBtn, plusLp);
+                  newTabBtn.setOnClickListener(v -> newTab("https://www.google.com"));
+
+                  Button menuBtn = makeButton("⋮");
+                  menuBtn.setTextSize(22);
+                  menuBtn.setPadding(0, 0, 0, 0);
+                  LinearLayout.LayoutParams menuLp = new LinearLayout.LayoutParams(dp(36), dp(40));
+                  menuLp.leftMargin = dp(2);
+                  toolbar.addView(menuBtn, menuLp);
+                  menuBtn.setOnClickListener(v -> showBrowserMenu());
+                  root.addView(toolbar);
+
+                  HorizontalScrollView shortcutScroll = new HorizontalScrollView(this);
+                  shortcutScroll.setHorizontalScrollBarEnabled(false);
+                  shortcutsRow = new LinearLayout(this);
+                  shortcutsRow.setPadding(0, dp(5), 0, dp(4));
+                  for (int i = 0; i < shortcutUrls.length; i++) {
+                      final int index = i;
+                      Button b = makeButton(shortcutNames[i]);
+                      b.setTextSize(10);
+                      b.setPadding(dp(8), 0, dp(8), 0);
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(31));
+                      lp.rightMargin = dp(4);
+                      shortcutsRow.addView(b, lp);
+                      b.setOnClickListener(v -> loadInCurrent(shortcutUrls[index]));
+                  }
+                  shortcutScroll.addView(shortcutsRow);
+                  root.addView(shortcutScroll);
+
+                  HorizontalScrollView tabScroll = new HorizontalScrollView(this);
+                  tabScroll.setHorizontalScrollBarEnabled(false);
+                  tabsRow = new LinearLayout(this);
+                  tabScroll.addView(tabsRow);
+                  root.addView(tabScroll);
+
+                  progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+                  progress.setMax(100);
+                  progress.setProgress(0);
+                  root.addView(progress, new LinearLayout.LayoutParams(-1, dp(2)));
+
+                  browserFrame = new FrameLayout(this);
+                  LinearLayout.LayoutParams browserLp = new LinearLayout.LayoutParams(-1, 0, 1);
+                  browserLp.topMargin = dp(2);
+                  root.addView(browserFrame, browserLp);
+
+                  // Persistent bottom controls: clear cookies and clear cache stay outside the menu.
+                  bottomRow = new LinearLayout(this);
+                  bottomRow.setGravity(Gravity.CENTER_VERTICAL);
+                  bottomRow.setPadding(0, dp(4), 0, 0);
+                  Button clearCookiesBtn = makeButton("🧹 Clear Cookies");
+                  clearCookiesBtn.setTextSize(11);
+                  Button clearCacheBtn = makeButton("Clear Cache");
+                  clearCacheBtn.setTextSize(11);
+                  LinearLayout.LayoutParams bottomBtnLp = new LinearLayout.LayoutParams(0, dp(34), 1);
+                  bottomBtnLp.leftMargin = dp(2);
+                  bottomBtnLp.rightMargin = dp(2);
+                  bottomRow.addView(clearCookiesBtn, new LinearLayout.LayoutParams(0, dp(34), 1));
+                  bottomRow.addView(clearCacheBtn, new LinearLayout.LayoutParams(0, dp(34), 1));
+                  clearCookiesBtn.setOnClickListener(v -> clearCookies());
+                  clearCacheBtn.setOnClickListener(v -> clearCache());
+                  root.addView(bottomRow, new LinearLayout.LayoutParams(-1, dp(38)));
+
+                  setContentView(root);
+                  applyColors();
+              }
+
+              private void showBrowserMenu() {
+                  String[] items = {"🔖 Bookmarks", "🕘 History", "📥 Downloads", "🧩 Extensions",
+                      darkMode ? "☀ Light Mode" : "🌙 Dark Mode", "🖥 Desktop Site", "↻ Reload",
+                      "↗ Share Page", "⌕ Find in Page", "⌂ Home", "🧹 Clear Browsing Data", "⚙ Settings", "ⓘ About DraculaWeb"};
+                  new AlertDialog.Builder(this)
+                      .setTitle("🧛 DraculaWeb")
+                      .setItems(items, (dialog, which) -> {
+                          switch (which) {
+                              case 0: showBookmarks(); break;
+                              case 1: showHistory(); break;
+                              case 2: showDownloads(); break;
+                              case 3: showExtensionsInfo(); break;
+                              case 4:
+                                  darkMode = !darkMode;
+                                  prefs.edit().putBoolean("dark_mode", darkMode).apply();
+                                  rebuildKeepingPages(); break;
+                              case 5: toggleDesktopSite(); break;
+                              case 6: if (active() != null) active().reload(); break;
+                              case 7: shareCurrentPage(); break;
+                              case 8: findInPage(); break;
+                              case 9: loadInCurrent(prefs.getString("homepage", "https://www.google.com")); break;
+                              case 10: clearBrowsingData(); break;
+                              case 11: showSettings(); break;
+                              case 12: new AlertDialog.Builder(this).setTitle("About DraculaWeb")
+                                  .setMessage("DraculaWeb 2.3\nA compact Android WebView browser.")
+                                  .setPositiveButton("OK", null).show(); break;
+                          }
+                      }).show();
+              }
+
+              private void showExtensionsInfo() {
+                  new AlertDialog.Builder(this).setTitle("Extensions")
+                      .setMessage("Chrome Web Store extensions cannot be installed directly in Android WebView. This build does not yet support real Chrome extensions.")
+                      .setPositiveButton("Open Chrome Web Store", (d, w) -> loadInCurrent("https://chromewebstore.google.com/"))
+                      .setNegativeButton("Close", null).show();
+              }
+
+              private void showHistory() {
+                  Set<String> saved = prefs.getStringSet("history", new HashSet<>());
+                  if (saved.isEmpty()) { Toast.makeText(this, "No history yet", Toast.LENGTH_SHORT).show(); return; }
+                  ArrayList<String> list = new ArrayList<>(saved);
+                  java.util.Collections.reverse(list);
+                  String[] items = list.toArray(new String[0]);
+                  new AlertDialog.Builder(this).setTitle("History")
+                      .setItems(items, (d, which) -> loadInCurrent(items[which]))
+                      .setNeutralButton("Clear history", (d, w) -> { prefs.edit().remove("history").apply(); Toast.makeText(this, "History cleared", Toast.LENGTH_SHORT).show(); })
+                      .setNegativeButton("Close", null).show();
+              }
+
+              private void addHistory(String url) {
+                  if (url == null || !(url.startsWith("http://") || url.startsWith("https://"))) return;
+                  Set<String> old = prefs.getStringSet("history", new HashSet<>());
+                  ArrayList<String> list = new ArrayList<>(old);
+                  list.remove(url); list.add(url);
+                  while (list.size() > 100) list.remove(0);
+                  prefs.edit().putStringSet("history", new HashSet<>(list)).apply();
+              }
+
+              private void toggleDesktopSite() {
+                  WebView w = active(); if (w == null) return;
+                  android.webkit.WebSettings settings = w.getSettings();
+                  boolean desktop = !settings.getUserAgentString().contains("DraculaDesktop");
+                  String ua = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 DraculaDesktop";
+                  settings.setUserAgentString(desktop ? ua : android.webkit.WebSettings.getDefaultUserAgent(this));
+                  w.reload();
+              }
+
+              private void shareCurrentPage() {
+                  WebView w = active(); if (w == null || w.getUrl() == null) return;
+                  Intent share = new Intent(Intent.ACTION_SEND); share.setType("text/plain");
+                  share.putExtra(Intent.EXTRA_TEXT, w.getUrl());
+                  startActivity(Intent.createChooser(share, "Share page"));
+              }
+
+              private void findInPage() {
+                  EditText input = new EditText(this); input.setSingleLine(true); input.setHint("Find text");
+                  new AlertDialog.Builder(this).setTitle("Find in page").setView(input)
+                      .setPositiveButton("Find", (d, w) -> { if (active() != null) active().findAllAsync(input.getText().toString()); })
+                      .setNegativeButton("Cancel", null).show();
+              }
+
+              private void clearBrowsingData() {
+                  new AlertDialog.Builder(this).setTitle("Clear browsing data")
+                      .setMessage("Clear history, cookies and cached files?")
+                      .setNegativeButton("Cancel", null)
+                      .setPositiveButton("Clear", (d, w) -> {
+                          prefs.edit().remove("history").remove("bookmarks").apply();
+                          clearCookies(); clearCache();
+                      }).show();
+              }
+
+              private void showSettings() {
+                  boolean clearOnExit = prefs.getBoolean("clear_on_exit", false);
+                  String[] items = {"Dark / Light Mode", "Homepage", "Search Engine",
+                      clearOnExit ? "✓ Clear browsing data on exit" : "□ Clear browsing data on exit"};
+                  new AlertDialog.Builder(this).setTitle("Settings").setItems(items, (d, which) -> {
+                      if (which == 0) { darkMode = !darkMode; prefs.edit().putBoolean("dark_mode", darkMode).apply(); rebuildKeepingPages(); }
+                      else if (which == 1) editPreferenceUrl("homepage", "Homepage URL", "https://www.google.com");
+                      else if (which == 2) editPreferenceUrl("search_engine", "Search URL (use %s for query)", "https://www.google.com/search?q=%s");
+                      else if (which == 3) {
+                          boolean enabled = !prefs.getBoolean("clear_on_exit", false);
+                          prefs.edit().putBoolean("clear_on_exit", enabled).apply();
+                          Toast.makeText(this, enabled ? "Clear on exit enabled" : "Clear on exit disabled", Toast.LENGTH_SHORT).show();
+                      }
+                  }).show();
+              }
+
+              private void editPreferenceUrl(String key, String title, String fallback) {
+                  EditText input = new EditText(this); input.setSingleLine(true);
+                  input.setText(prefs.getString(key, fallback));
+                  new AlertDialog.Builder(this).setTitle(title).setView(input)
+                      .setPositiveButton("Save", (d, w) -> prefs.edit().putString(key, input.getText().toString().trim()).apply())
+                      .setNegativeButton("Cancel", null).show();
+              }
+
+              private void rebuildKeepingPages() {
+                  // Rebuilds the chrome while keeping the existing WebViews alive.
+                  if (root != null) {
+                      if (browserFrame != null) {
+                          for (WebView w : pages) {
+                              if (w.getParent() != null) ((ViewGroup) w.getParent()).removeView(w);
+                          }
+                      }
+                  }
+                  buildInterface();
+                  for (int i = 0; i < pages.size(); i++) {
+                      browserFrame.addView(pages.get(i), new FrameLayout.LayoutParams(-1, -1));
+                      pages.get(i).setVisibility(i == current ? View.VISIBLE : View.GONE);
+                  }
+                  refreshTabs();
+                  updateAddressBar();
+              }
+
+              private void applyColors() {
+                  root.setBackgroundColor(bg());
+                  if (brand != null) brand.setTextColor(accent());
+                  if (addressBar != null) {
+                      addressBar.setTextColor(fg());
+                      addressBar.setHintTextColor(muted());
+                      addressBar.setBackground(roundDrawable(panel(), dp(18)));
+                  }
+                  if (progress != null) progress.setProgressTintList(android.content.res.ColorStateList.valueOf(accent()));
+              }
+
+              private android.graphics.drawable.GradientDrawable roundDrawable(int color, int radius) {
+                  android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
+                  d.setColor(color);
+                  d.setCornerRadius(radius);
+                  d.setStroke(dp(1), darkMode ? Color.rgb(43, 53, 72) : Color.rgb(220, 226, 236));
+                  return d;
+              }
+
+              private int dp(float value) {
+                  return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+              }
+
+              private Button makeButton(String text) {
+                  Button b = new Button(this);
+                  b.setText(text);
+                  b.setTextSize(12);
+                  b.setAllCaps(false);
+                  b.setTextColor(fg());
+                  b.setPadding(dp(10), 0, dp(10), 0);
+                  b.setBackground(roundDrawable(panel(), dp(14)));
+                  if (Build.VERSION.SDK_INT >= 21) b.setStateListAnimator(null);
+                  return b;
+              }
+
+              private void addControl(String label, Runnable action) {
+                  Button b = makeButton(label);
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(40));
+                  lp.rightMargin = dp(5);
+                  controlsRow.addView(b, lp);
+                  b.setOnClickListener(v -> action.run());
+              }
+
+              private void addBottomButton(String label, Runnable action) {
+                  Button b = makeButton(label);
+                  b.setTextSize(11);
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(38), 1);
+                  lp.leftMargin = dp(2);
+                  lp.rightMargin = dp(2);
+                  bottomRow.addView(b, lp);
+                  b.setOnClickListener(v -> action.run());
+              }
+
+              private WebView active() {
+                  if (current < 0 || current >= pages.size()) return null;
+                  return pages.get(current);
+              }
+
+              private void goToAddress() {
+                  String text = addressBar.getText().toString().trim();
+                  if (text.isEmpty()) return;
+                  String target;
+                  if (text.matches("(?i)^https?://.*")) {
+                      target = text;
+                  } else if (text.matches("(?i)^[a-z0-9.-]+\\.[a-z]{2,}(:[0-9]+)?(/.*)?$")) {
+                      target = "https://" + text;
+                  } else {
+                      try {
+                          target = prefs.getString("search_engine", "https://www.google.com/search?q=%s").replace("%s", Uri.encode(text));
+                      } catch (Exception e) {
+                          target = "https://www.google.com";
+                      }
+                  }
+                  loadInCurrent(target);
+              }
+
+              private void loadInCurrent(String url) {
+                  if (active() == null) newTab(url);
+                  else {
+                      pageUrls.set(current, url);
+                      active().loadUrl(url);
+                      updateAddressBar();
+                  }
+              }
+
+              private void updateAddressBar() {
+                  if (addressBar == null) return;
+                  WebView w = active();
+                  String url = w != null ? w.getUrl() : "";
+                  addressBar.setText(url == null ? "" : url);
+                  if (w != null) addressBar.setSelection(addressBar.getText().length());
+              }
+
+              private void newTab(String url) {
+                  WebView w = new WebView(this);
+                  w.setBackgroundColor(Color.WHITE);
+                  w.getSettings().setJavaScriptEnabled(true);
+                  w.getSettings().setDomStorageEnabled(true);
+                  w.getSettings().setLoadsImagesAutomatically(true);
+                  w.getSettings().setSupportMultipleWindows(false);
+                  w.getSettings().setJavaScriptCanOpenWindowsAutomatically(false);
+
+                  w.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                          Uri uri = request.getUrl();
+                          String scheme = uri.getScheme();
+                          if (scheme != null && (scheme.equals("http") || scheme.equals("https"))) return false;
+                          try {
+                              startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                          } catch (ActivityNotFoundException ex) {
+                              Toast.makeText(MainActivity.this, "No app can open this link", Toast.LENGTH_SHORT).show();
+                          }
+                          return true;
+                      }
+
+                      @Override
+                      public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                          if (view == active()) {
+                              progress.setVisibility(View.VISIBLE);
+                              progress.setProgress(10);
+                              addressBar.setText(url);
+                          }
+                      }
+
+                      @Override
+                      public void onPageFinished(WebView view, String url) {
+                          if (view == active()) {
+                              progress.setProgress(100);
+                              progress.setVisibility(View.GONE);
+                              addressBar.setText(url);
+                          }
+                          int index = pages.indexOf(view);
+                          if (index >= 0) pageUrls.set(index, url);
+                          addHistory(url);
+                          refreshTabs();
+                      }
+                  });
+
+                  w.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public void onProgressChanged(WebView view, int newProgress) {
+                          if (view == active()) {
+                              progress.setVisibility(newProgress >= 100 ? View.GONE : View.VISIBLE);
+                              progress.setProgress(newProgress);
+                          }
+                      }
+
+                      @Override
+                      public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> callback,
+                                                       FileChooserParams params) {
+                          if (filePathCallback != null) filePathCallback.onReceiveValue(null);
+                          filePathCallback = callback;
+                          Intent intent;
+                          try {
+                              intent = params.createIntent();
+                              intent.addCategory(Intent.CATEGORY_OPENABLE);
+                              intent.setType("*/*");
+                              startActivityForResult(intent, FILE_CHOOSER_REQUEST);
+                              return true;
+                          } catch (Exception e) {
+                              filePathCallback = null;
+                              Toast.makeText(MainActivity.this, "Cannot open file picker", Toast.LENGTH_SHORT).show();
+                              return false;
+                          }
+                      }
+                  });
+
+                  w.setDownloadListener(new DownloadListener() {
+                      @Override
+                      public void onDownloadStart(String url, String userAgent, String contentDisposition,
+                                                  String mimetype, long contentLength) {
+                          pendingDownloadUrl = url;
+                          pendingDownloadUserAgent = userAgent;
+                          pendingDownloadDisposition = contentDisposition;
+                          pendingDownloadMime = mimetype;
+                          if (Build.VERSION.SDK_INT <= 28 &&
+                              checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                              requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERMISSION_REQUEST);
+                          } else {
+                              startDownload(url, userAgent, contentDisposition, mimetype);
+                          }
+                      }
+                  });
+
+                  pages.add(w);
+                  pageUrls.add(url);
+                  browserFrame.addView(w, new FrameLayout.LayoutParams(-1, -1));
+                  current = pages.size() - 1;
+                  w.loadUrl(url);
+                  refreshTabs();
+                  updateAddressBar();
+              }
+
+              private void startDownload(String url, String userAgent, String disposition, String mime) {
+                  try {
+                      DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+                      String filename = URLUtil.guessFileName(url, disposition, mime);
+                      request.setTitle(filename);
+                      request.setDescription("Downloading with DraculaWeb");
+                      request.setMimeType(mime);
+                      request.addRequestHeader("User-Agent", userAgent);
+                      String cookie = CookieManager.getInstance().getCookie(url);
+                      if (cookie != null) request.addRequestHeader("Cookie", cookie);
+                      request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                      request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
+                      DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                      manager.enqueue(request);
+                      Toast.makeText(this, "Download started: " + filename, Toast.LENGTH_LONG).show();
+                  } catch (Exception e) {
+                      Toast.makeText(this, "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                  }
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+                  super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                  if (requestCode == STORAGE_PERMISSION_REQUEST) {
+                      if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                          startDownload(pendingDownloadUrl, pendingDownloadUserAgent, pendingDownloadDisposition, pendingDownloadMime);
+                      } else {
+                          Toast.makeText(this, "Storage permission needed to save downloads", Toast.LENGTH_LONG).show();
+                      }
+                  }
+              }
+
+              @Override
+              protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+                  super.onActivityResult(requestCode, resultCode, data);
+                  if (requestCode == FILE_CHOOSER_REQUEST) {
+                      if (filePathCallback == null) return;
+                      Uri[] results = null;
+                      if (resultCode == RESULT_OK && data != null) {
+                          Uri result = data.getData();
+                          if (result != null) results = new Uri[]{result};
+                          else if (Build.VERSION.SDK_INT >= 21 && data.getClipData() != null) {
+                              int count = data.getClipData().getItemCount();
+                              results = new Uri[count];
+                              for (int i = 0; i < count; i++) results[i] = data.getClipData().getItemAt(i).getUri();
+                          }
+                      }
+                      filePathCallback.onReceiveValue(results);
+                      filePathCallback = null;
+                  }
+              }
+
+              private void refreshTabs() {
+                  if (tabsRow == null) return;
+                  tabsRow.removeAllViews();
+                  for (int i = 0; i < pages.size(); i++) {
+                      final int index = i;
+                      LinearLayout tabChip = new LinearLayout(this);
+                      tabChip.setOrientation(LinearLayout.HORIZONTAL);
+                      tabChip.setGravity(Gravity.CENTER_VERTICAL);
+                      tabChip.setBackground(makeTabBackground(i == current));
+
+                      Button select = makeButton((i == current ? "● " : "") + "Tab " + (i + 1));
+                      select.setAllCaps(false);
+                      select.setMinWidth(0);
+                      select.setPadding(dp(10), 0, dp(6), 0);
+                      select.setBackgroundColor(Color.TRANSPARENT);
+                      tabChip.addView(select, new LinearLayout.LayoutParams(-2, dp(36)));
+                      select.setOnClickListener(v -> {
+                          current = index;
+                          for (int j = 0; j < pages.size(); j++) {
+                              pages.get(j).setVisibility(j == current ? View.VISIBLE : View.GONE);
+                          }
+                          refreshTabs();
+                          updateAddressBar();
+                      });
+
+                      Button close = makeButton("×");
+                      close.setTextSize(18);
+                      close.setMinWidth(dp(32));
+                      close.setPadding(dp(4), 0, dp(8), 0);
+                      close.setContentDescription("Close Tab " + (i + 1));
+                      close.setBackgroundColor(Color.TRANSPARENT);
+                      tabChip.addView(close, new LinearLayout.LayoutParams(dp(32), dp(36)));
+                      close.setOnClickListener(v -> {
+                          if (pages.size() <= 1) {
+                              Toast.makeText(this, "Keep at least one tab open", Toast.LENGTH_SHORT).show();
+                              return;
+                          }
+                          int removeIndex = index;
+                          WebView removed = pages.remove(removeIndex);
+                          pageUrls.remove(removeIndex);
+                          browserFrame.removeView(removed);
+                          removed.stopLoading();
+                          removed.destroy();
+                          if (removeIndex < current) current--;
+                          else if (removeIndex == current) current = Math.min(current, pages.size() - 1);
+                          for (int j = 0; j < pages.size(); j++) {
+                              pages.get(j).setVisibility(j == current ? View.VISIBLE : View.GONE);
+                          }
+                          refreshTabs();
+                          updateAddressBar();
+                      });
+
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(36));
+                      lp.rightMargin = dp(6);
+                      tabsRow.addView(tabChip, lp);
+                  }
+              }
+
+              private android.graphics.drawable.Drawable makeTabBackground(boolean selected) {
+                  android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+                  bg.setColor(selected ? Color.rgb(24, 48, 58) : Color.rgb(25, 31, 40));
+                  bg.setCornerRadius(dp(10));
+                  bg.setStroke(dp(1), selected ? Color.rgb(91, 219, 202) : Color.rgb(55, 67, 79));
+                  return bg;
+              }
+
+              private void closeTab() {
+                  if (pages.size() <= 1) {
+                      Toast.makeText(this, "Keep at least one tab open", Toast.LENGTH_SHORT).show();
+                      return;
+                  }
+                  WebView w = pages.remove(current);
+                  pageUrls.remove(current);
+                  browserFrame.removeView(w);
+                  w.stopLoading();
+                  w.destroy();
+                  current = Math.max(0, current - 1);
+                  for (int i = 0; i < pages.size(); i++) pages.get(i).setVisibility(i == current ? View.VISIBLE : View.GONE);
+                  refreshTabs();
+                  updateAddressBar();
+              }
+
+              private void goBack() {
+                  WebView w = active();
+                  if (w != null && w.canGoBack()) w.goBack();
+              }
+
+              private void goForward() {
+                  WebView w = active();
+                  if (w != null && w.canGoForward()) w.goForward();
+              }
+
+              private void saveBookmark() {
+                  WebView w = active();
+                  if (w == null || w.getUrl() == null) return;
+                  Set<String> saved = new HashSet<>(prefs.getStringSet("bookmarks", new HashSet<>()));
+                  saved.add(w.getUrl());
+                  prefs.edit().putStringSet("bookmarks", saved).apply();
+                  Toast.makeText(this, "Bookmark saved", Toast.LENGTH_SHORT).show();
+              }
+
+              private void showBookmarks() {
+                  Set<String> saved = prefs.getStringSet("bookmarks", new HashSet<>());
+                  if (saved.isEmpty()) {
+                      Toast.makeText(this, "No bookmarks saved yet", Toast.LENGTH_SHORT).show();
+                      return;
+                  }
+                  String[] items = saved.toArray(new String[0]);
+                  new AlertDialog.Builder(this)
+                      .setTitle("Bookmarks")
+                      .setItems(items, (dialog, which) -> loadInCurrent(items[which]))
+                      .setNegativeButton("Close", null)
+                      .show();
+              }
+
+              private void showDownloads() {
+                  try {
+                      Intent intent = new Intent(DownloadManager.ACTION_VIEW_DOWNLOADS);
+                      startActivity(intent);
+                  } catch (Exception e) {
+                      Toast.makeText(this, "Open Downloads from your phone's Files app", Toast.LENGTH_LONG).show();
+                  }
+              }
+
+              private void clearCookies() {
+                  WebView currentWeb = active();
+                  String reloadUrl = currentWeb != null ? currentWeb.getUrl() : null;
+                  CookieManager cm = CookieManager.getInstance();
+                  cm.removeAllCookies(value -> {
+                      cm.flush();
+                      // Clear WebView site storage too, then reload the current page so
+                      // the page reflects the signed-out / cookie-cleared state.
+                      try { android.webkit.WebStorage.getInstance().deleteAllData(); } catch (Exception ignored) {}
+                      runOnUiThread(() -> {
+                          for (WebView web : pages) {
+                              try { web.clearFormData(); web.clearHistory(); } catch (Exception ignored) {}
+                          }
+                          if (reloadUrl != null && !reloadUrl.trim().isEmpty() && active() != null) {
+                              active().loadUrl(reloadUrl);
+                          }
+                          Toast.makeText(this, "Cookies and site data cleared; page reloaded", Toast.LENGTH_SHORT).show();
+                      });
+                  });
+              }
+
+              private void clearCache() {
+                  String reloadUrl = active() != null ? active().getUrl() : null;
+                  for (WebView w : pages) {
+                      w.clearCache(true);
+                      w.clearHistory();
+                      w.clearFormData();
+                  }
+                  if (reloadUrl != null && active() != null) active().loadUrl(reloadUrl);
+                  Toast.makeText(this, "Cache cleared; page reloaded", Toast.LENGTH_SHORT).show();
+              }
+
+              private void clearDataOnExit() {
+                  if (prefs == null || !prefs.getBoolean("clear_on_exit", false)) return;
+                  try {
+                      CookieManager cm = CookieManager.getInstance();
+                      cm.removeAllCookies(null);
+                      cm.flush();
+                      android.webkit.WebStorage.getInstance().deleteAllData();
+                  } catch (Exception ignored) {}
+                  for (WebView web : pages) {
+                      try { web.clearCache(true); web.clearHistory(); web.clearFormData(); } catch (Exception ignored) {}
+                  }
+                  prefs.edit().remove("history").apply();
+              }
+
+              @Override
+              protected void onDestroy() {
+                  clearDataOnExit();
+                  super.onDestroy();
+              }
+
+              @Override
+              public void onBackPressed() {
+                  WebView w = active();
+                  if (w != null && w.canGoBack()) w.goBack();
+                  else if (pages.size() > 1) closeTab();
+                  else super.onBackPressed();
+              }
           }
           EOF
+
+      - name: Install Gradle
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          unzip -q gradle-8.9-bin.zip
+          echo "$GITHUB_WORKSPACE/gradle-8.9/bin" >> "$GITHUB_PATH"
+
       - name: Build APK
-        run: gradle assembleDebug --stacktrace
+        run: gradle --no-daemon assembleDebug
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: DraculaWeb-2.6-Extension-Preview
+          name: DraculaWeb-2.5-APK
           path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
