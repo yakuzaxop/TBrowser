@@ -1,4 +1,4 @@
-name: Build DraculaWeb APK
+name: Build DraculaWeb APK 2.5
 
 on:
   workflow_dispatch:
@@ -163,11 +163,11 @@ jobs:
               private SharedPreferences prefs;
 
               private final String[] shortcutNames = {
-                  "Meta Contact", "Fish Mail", "Meta Auth", "2FA", "Manage", "Instagram"
+                  "Meta Contact", "TD Mail", "Meta Auth", "2FA", "Manage", "Instagram"
               };
               private final String[] shortcutUrls = {
                   "http://accountscenter.meta.com/account_overview/contact_points",
-                  "https://tempmail.fish/",
+                  "https://mail.td/",
                   "http://auth.meta.com/?waterfall_id",
                   "https://accountscenter.instagram.com/password_and_security/two_factor/?theme=dark",
                   "https://accountscenter.instagram.com/manage/",
@@ -399,11 +399,18 @@ jobs:
               }
 
               private void showSettings() {
-                  String[] items = {"Dark / Light Mode", "Homepage", "Search Engine"};
+                  boolean clearOnExit = prefs.getBoolean("clear_on_exit", false);
+                  String[] items = {"Dark / Light Mode", "Homepage", "Search Engine",
+                      clearOnExit ? "✓ Clear browsing data on exit" : "□ Clear browsing data on exit"};
                   new AlertDialog.Builder(this).setTitle("Settings").setItems(items, (d, which) -> {
                       if (which == 0) { darkMode = !darkMode; prefs.edit().putBoolean("dark_mode", darkMode).apply(); rebuildKeepingPages(); }
                       else if (which == 1) editPreferenceUrl("homepage", "Homepage URL", "https://www.google.com");
                       else if (which == 2) editPreferenceUrl("search_engine", "Search URL (use %s for query)", "https://www.google.com/search?q=%s");
+                      else if (which == 3) {
+                          boolean enabled = !prefs.getBoolean("clear_on_exit", false);
+                          prefs.edit().putBoolean("clear_on_exit", enabled).apply();
+                          Toast.makeText(this, enabled ? "Clear on exit enabled" : "Clear on exit disabled", Toast.LENGTH_SHORT).show();
+                      }
                   }).show();
               }
 
@@ -804,19 +811,55 @@ jobs:
               }
 
               private void clearCookies() {
+                  WebView currentWeb = active();
+                  String reloadUrl = currentWeb != null ? currentWeb.getUrl() : null;
                   CookieManager cm = CookieManager.getInstance();
                   cm.removeAllCookies(value -> {
                       cm.flush();
-                      Toast.makeText(this, "Cookies cleared", Toast.LENGTH_SHORT).show();
+                      // Clear WebView site storage too, then reload the current page so
+                      // the page reflects the signed-out / cookie-cleared state.
+                      try { android.webkit.WebStorage.getInstance().deleteAllData(); } catch (Exception ignored) {}
+                      runOnUiThread(() -> {
+                          for (WebView web : pages) {
+                              try { web.clearFormData(); web.clearHistory(); } catch (Exception ignored) {}
+                          }
+                          if (reloadUrl != null && !reloadUrl.trim().isEmpty() && active() != null) {
+                              active().loadUrl(reloadUrl);
+                          }
+                          Toast.makeText(this, "Cookies and site data cleared; page reloaded", Toast.LENGTH_SHORT).show();
+                      });
                   });
               }
 
               private void clearCache() {
+                  String reloadUrl = active() != null ? active().getUrl() : null;
                   for (WebView w : pages) {
                       w.clearCache(true);
                       w.clearHistory();
+                      w.clearFormData();
                   }
-                  Toast.makeText(this, "Cache cleared", Toast.LENGTH_SHORT).show();
+                  if (reloadUrl != null && active() != null) active().loadUrl(reloadUrl);
+                  Toast.makeText(this, "Cache cleared; page reloaded", Toast.LENGTH_SHORT).show();
+              }
+
+              private void clearDataOnExit() {
+                  if (prefs == null || !prefs.getBoolean("clear_on_exit", false)) return;
+                  try {
+                      CookieManager cm = CookieManager.getInstance();
+                      cm.removeAllCookies(null);
+                      cm.flush();
+                      android.webkit.WebStorage.getInstance().deleteAllData();
+                  } catch (Exception ignored) {}
+                  for (WebView web : pages) {
+                      try { web.clearCache(true); web.clearHistory(); web.clearFormData(); } catch (Exception ignored) {}
+                  }
+                  prefs.edit().remove("history").apply();
+              }
+
+              @Override
+              protected void onDestroy() {
+                  clearDataOnExit();
+                  super.onDestroy();
               }
 
               @Override
@@ -841,5 +884,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: DraculaWeb-2.4-APK
+          name: DraculaWeb-2.5-APK
           path: app/build/outputs/apk/debug/app-debug.apk
